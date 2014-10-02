@@ -1,0 +1,385 @@
+
+****************************************************************************
+
+Some changes have been made to the 7.0.1.13 version of the re-AIM benchmark
+to converge the sources so that it can easily be built with correct compile
+options on either Linux or HP-UX.  
+
+The current version is:
+
+	hp-osdl-aim-7.0.1.13.rev7.tar
+
+****************************************************************************
+
+On Linux you might want to do the following before installing:
+--------------------------------------------------------------
+
+	rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-redhat-release
+
+	cd /tmp
+	wget http://satserv.usa.hp.com/pub/bootstrap/bootstrap.sh
+	sh bootstrap.sh
+
+	(edit /etc/yum.repos.d/test.repo if necessary.  See linux_install.)
+
+	yum -y remove mint-firmware.x86_64    # to remove 2.6 firmware
+
+	yum -y install libaio-devel.x86_64
+
+	yum -y install automake-1.11.1-1.2.el6.noarch
+
+	yum -y install libtool-2.2.6-15.5.el6.x86_64
+
+	yum -y install make
+	yum -y install numactl
+	yum -y install powertop
+
+
+****************************************************************************
+
+The general directions for AIM-7 installation are:
+--------------------------------------------------
+
+	1. Get hp-osdl-aim-7.0.1.13.rev7.tar.gz, unzip it, untar it in:
+
+		/usr/local/share/reaim
+
+	2. install AIM-7
+
+		a)  cd  /usr/local/share/reaim
+
+		b)  run:   ./osdl-aim-7/setup
+
+	3) if you want to change the default mount points for
+	   the ramfs filesystems:
+
+		a)  edit:  /usr/local/share/reaim/reaim.config 
+
+			comment out the DISKDIR line as follows: 
+			# DISKDIR /tmp/diskdir
+
+		b)  cd     /usr/local/share/reaim/osdl-aim-7/Support_scripts
+
+		c)  edit:  master_disk_list        # for temp FS to use
+
+		d)  run:  ./do_make_devices
+
+		e)  run:  ./do_make_file_systems   # only for HP-UX
+
+		f)  run:  ./do_mkdir_file_systems
+
+		g)  run:  ./do_modify_reaim_config
+
+	   The scripts are able to create ram-disk file systems, but 
+	   leave alone devices marked "io", since they don't have 
+	   enough information for the major and minor number.  Likewise
+	   "nontest" marked entries are ignored during the mount phase, 
+	   since they're probably already mounted (this designation is
+	   for things like ramdisks mounted on /tmp/ and /var/tmp that 
+	   should be persistent between workload runs).
+
+
+***************************************************************************
+
+Running workloads with the 'run_reaim' script:
+----------------------------------------------
+
+The 'run_reaim' is a wrapper on top of the 'reaim' command that runs all 
+workloads with the various options we normally use. A further benefit is 
+that dat from multiple runs will be placed in a signle file for that 
+workload so that Excel spreadsheet graphs can easily be created comparing 
+multiple runs.
+
+Options for the 'run_reaim' script are:
+
+    $ ./run_reaim -help
+
+    Usage: run_reaim
+
+        -k <kernel>      # name to appear on Excel spreadsheet graph line
+        -t <title>       # name to appear on graph title (ie, system name/type)
+        -d <log_dir>     # output logging directory (default: "./results")
+        -c <cmd>         # reaim preface (for ex: "chrt --fifo 3")
+        -r               # remove old logging directory first
+        -h               # help menu
+
+        -ramfs           # use a ramfs for workloads (default)
+        -diskfs          # use a diskfs for workloads
+
+	-avg <num>       # average <num> runs
+
+        -x1              # do *not* run 10-90     users option
+        -x2              # do *not* run 100-1000  users option
+        -x3              # do *not* run 1100-2000 users option
+        -x4              # do *not* run $OPTS4 users option (currently unused)
+        -x5              # do *not* run $OPTS5 users option (currently unused)
+        -x6              # do *not* run $OPTS6 users option (currently unused)
+
+        -<workload>      # do *not* run <workload>
+
+        +<workload>      # only run <workload>
+
+        -aim9only        # only run aim9
+
+    -k <kernel> and -t <title> are required
+
+    Avail Workloads:  short       new_fserver five_sec    fserver     high_systime
+                      new_dbase   dbase       shared      alltests    compute
+                      custom      long        all_utime   disk        aim9
+
+By default 'run_reaim' will run all workloads except 'aim9'.
+
+You can run 'run_reaim' from any directory.
+
+The -k and -t options are required so that output data from multiple runs can
+be graphed in an excel spreadsheet. Normally for the -t option you would
+soecify something like -t "my_machine DL980 80-core 512G". The -k option is
+used to differentiate between multiple runs of the same workload. You might 
+specify something like -k "RedHat 6.3 with my changes".
+
+Output results will be placed in the "./results" directory (or whatever you 
+specify with the -d <dir> option). There will be 2 files created for each 
+workload run. For example, after running the 'fserver' workload you will see:
+
+	fserver.csv    a comma separated file to be placed in Excel spreadsheet
+	fserver.ssv    a space separated file easily read by humans
+
+Each time you run 'run_reaim' the new output will be added to the end of the 
+current ooutput files. When all comparisons have been run, you can read the
+data from the *.csv files into the sample excel spreadsheet in the results
+directory. Graphs will be created from the input data. To read data in to excel
+go to the "data" tab, click "From Text" button and follow the prompts to import
+from a comma separated file.
+
+A copy of the 'run_reaim' output will be placed in the ./results directory in a
+file called 'run_reaim.out'. You can follow the progress with 
+'tail -f run_reaim.out'
+
+The "-<workload>" option allows you to exclude a specific workload from the run
+
+The "+<workload>" will cause only that workload (or multiple workloads) to 
+be run
+
+By default the workloads are run with a ramfs (the -ramfs option). The "disk" 
+workload is an exception, it can only be run will a disk-based FS and run_reaim 
+will only run it in this mode, regardless of command line options.
+
+Example command lines are:
+
+	# run all workloads
+	./run_reaim -k "my kernel" -s "my machine" 
+
+	# run only fserver and compute
+	./run_reaim -k "my kernel" -s "my machine" +fserver _compute
+
+	# run all workloads except short
+	./run_reaim -k "my kernel" -s "my machine" -short 
+
+	# place results in ./my_results
+	./run_reaim -k "my kernel" -s "my machine" -d ./my_results 
+
+	# run all workloads with a disk based FS
+	./run_reaim -k "my kernel" -s "my machine" -diskfs 
+
+	# run 'reaim' as realtime processes
+	./run_reaim -k "my kernel" -s "my machine" -c "chrt --fifo 1" 
+
+	# only run the 100-1000 users option
+	./run_reaim -k "my kernel" -s "my machine" -x1 -x3
+
+Probably the easiest thing to do is to perform 2 or 3 runs of 'run_reaim' (with
+different -k options) and then go look at all the various output files in
+the results directory.
+ 
+
+**************************************************************************
+
+Incoorporating the results into excel
+-------------------------------------
+
+- 2 options for incorporating data into the templates
+
+- Different template for each option
+
+- Use the option that fits your workflow the best
+
+- Note: the .xlsx templates are sensitive to the format of the .csv 
+        files – don’t change these output files
+
+
+Option 1)
+
+    Instructions are for Office 2007 
+
+	- Open the Excel template: aim_graph_template_empty_data.xlsx
+
+	- Click on the “Data” menu tab
+
+	- for each worksheet tab (workload) do the following:
+
+		- Click on the worksheet tab you want (eg, “all_utime” tab 
+		  at the bottom)
+
+		- Click on cell A1
+
+		- Click “From Text” on the Data menu tab – this will bring 
+		  up an open dialog box
+
+		- Navigate to the .csv file you want to incorporate and open 
+		  the file
+
+		- Click “Next” on first Import Wizard box (“Delimited” should 
+		  be selected)
+
+		- Click “Comma” on the second Import Wizard box, followed 
+		  by “Next”
+
+		- Click “Finish” on the third Import Wizard box (“General” 
+		  should be selected)
+
+		- In the Import Data box that appears, make sure it 
+		  states “=$A$1”, click “OK”
+
+		- Resize the width of columns A and B to make them smaller
+
+		- You will now see 4 graphs off to the right side of the data
+
+Option 2a)
+
+    Instructions are for Office 2007 
+
+	- Open the Excel template: aim_graph_template_w_sample_data.xlsx
+
+	- Click on the “Data” menu tab
+
+	- For each worksheet tab (e.g., “all_utime”, “compute”, etc at bottom)
+
+		- Click on the worksheet tab you want
+
+		- Click on cell A1
+
+		- Click the “Refresh All” drop-down menu of the Data menu tab
+
+			- ** DO NOT ** click on “Refresh All”
+
+			- Click on the drop-down and select “Refresh”
+
+			- “Refresh All” would be nice, but the open 
+			  dialog box won’t tell you which file/tab you are 
+			  opening so you can’t know which .csv file to select
+
+		- Navigate to the .csv file you want to incorporate and open 
+		  the file
+
+		- You will now see 4 graphs off to the right side of the data
+
+
+Option 2b)
+
+    Instructions for Office 2007
+
+	- Open the Excel template: aim_graph_template_w_sample_data.xlsx
+
+	- Follow the instructions for Option 2a
+
+	- Click on the “Data” menu tab
+
+	- For each worksheet tab (e.g., “all_utime”, “compute”, etc the bottom)
+
+		- Click on the worksheet tab you want
+
+		- Click on cell A1
+
+		- Click “Properties” of the Data menu tab
+
+		- A “Properties” dialog will appear. Make sure the following 
+		  are selected (or unselected):
+
+			- Select “Save query definition”
+
+			- Unselect “Prompt for file name on refresh”
+
+			- Unselect “Adjust column width”
+
+			- Select “Overwrite existing cells with new data, 
+			  clear unused cells”
+
+		- Click “OK”
+
+	- Option 2b is useful if you want to graph several different runs.
+
+	- Create your .xlsx file from instructions 2a and 2b
+
+	- For each run that you want graphed:
+
+		- Copy the output data from your new run to the same directory
+
+		- Open the .xlsx file, click on “Refresh All” under the 
+		  “Data” tab (or “Refresh” to do it worksheet by worksheet)
+
+		- The new data automatically appears
+
+		- Save the .xlsx file to a different filename
+
+	- Repeat this process for each run you want to graph
+
+
+**************************************************************************
+
+Running individual workloads manually with the 'reaim' command:
+---------------------------------------------------------------
+
+    - The workflow description files are in the dir /usr/local/share/reaim.
+      There are currently 14 different workfile.* workloads.
+
+    - The command line we are using is something like:
+
+    	./reaim -f ./workfile.high_systime -s100 -e1000 -j100 -i100 -y
+    	./reaim -f ./workfile.new_fserver  -s100 -e1000 -j100 -i100 -y 
+
+		-s is the starting number of users
+		-e is the ending number of users
+		-i is the increment in the number of users per run
+		-j is jobs per user which is 100 by default.
+		-y is do not execute "sync"
+
+    - Results are output to stdout. Results are also in the following files:
+
+	multiuser.ss     # space separated human-readable results
+
+	reaim.csv        # comma separates results to put in excel spreadsheet
+
+
+    - To run reaim with a ramfs do the following:
+
+	./osdl-aim-7/Support_scripts/do_mount_file_systems
+	./osdl-aim-7/Support_scripts/do_clean_file_systems
+
+	./reaim -f ./workfile.high_systime -s100 -e1000 -j100 -i100 -y
+
+	./osdl-aim-7/Support_scripts/do_clean_file_systems
+	./osdl-aim-7/Support_scripts/do_umount_file_systems
+
+
+****************************************************************************
+
+Run the following perf tools during a workload run:
+---------------------------------------------------
+
+#! /bin/bash
+#
+mkdir perfdata/run$$
+
+cd perfdata/run$$
+
+rm -f perf.out perf.data sar.out
+
+chrt -f 3 taskset 0x1 perf record -a -g -s /bin/sleep 30 &
+
+chrt -f 3 taskset 0x2 sar -b -u 5 6 -P ALL -n ALL -w -d >& sar.out && sleep 5;
+
+perf report -n --stdio > perf.out;
+
+
+****************************************************************************
+

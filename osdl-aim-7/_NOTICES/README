@@ -1,0 +1,103 @@
+This is a reworking of the AIM performance tests for the 
+benefit of the Linux community, and others who may be interested.
+
+This version of the test should work in an identical fashion
+to AIM, see README.aim for the details. 
+
+This version of the test is not known to be POSIX-compliant, 
+nor is it known to work on other operating systems, 
+due to lack of knowledge and test environment. 
+Contributions to make the test more portable appreciated. 
+
+------------------
+Instructions and warnings. 
+
+1. The files 
+	fakeh.tar
+	aim_*.sh
+	true
+	
+    Must be in your current working directory when running the test.
+	If you do a 'make install' the installer will place all the
+	needed stuff under (DESTDIR)/share/reaim
+
+    The 'reaim' binary will be installed in (DESTDIR)/bin. 
+	This directory must be in your PATH. 
+
+2. With no options, reaim with run 1 to 5 users with the default workfile.
+
+3. All options can be specified three ways:
+	- default 
+	- command line
+	- reaim.config file. 
+
+   Options in the reaim.config file are named in ALL CAPS. Sigh.
+
+------------------
+Alterations from the old test:
+
+1. The test function invocation has been changed - this
+	was done to allow possible reuse of LTP test cases.
+
+	Old:
+	static int mul_long(char *argv, Result * res)
+	New:
+	static int mul_long(int argc, char **argv, Result * res)
+	
+	register_test() has been altered to match. 
+
+2. The old build environment has been removed, and replaced
+	with a more standard GNU autoconf build.
+
+	- will need some work to make this portable
+	
+3. libltp.a has been included. 
+	- using the forker() function to replace aim_fork()
+	- using the tst_sig() function for signal capture()
+	- code re-use good
+
+4. Same test can be run in AIM9 mode (singleuser) or AIM7 
+
+5. The static arrays have been removed, the test list is now
+	a linked list. 
+
+	- processes per user is changeable on command line ('jobs')
+
+6. Signal handler uses the wait() macros
+
+
+
+----------------------------------
+Options
+---------------------------------
+options with no arguments
+
+--verbose,-v		- extra output to console. 
+--crossover,-c		- increment users until jobs/minute/user < 1.0
+				--endusers will be ignored
+--quick, -q		- increment users until jobs/second/user < 1.0
+				sets --crossover
+--multiuser, -m		- Default. AIM7 style
+--oneuser, -o		- AIM9 style. each test runs in sequence for 10 
+				seconds
+--timeroff, -t		- Do not use adaptive timer for load increment
+--brief, -b		- Generate a brief results file (stp_data.txt)
+
+options with optional arguements
+
+
+--debug, -d<level>	- level of debug output (file is /tmp/reaim.log)
+			 1 is default, 2 is more, 3 is tons 
+options that require argument
+
+--startusers, -s 	- starting user count. default 1
+--endusers, -e		- ending user count. default 5
+--increment, -i 	- increment - will be changed by adaptive timer
+--jobs, -j		- processes per user. Default 100. All tests
+				in workfile will be run once if this
+				value < size of test list in workfile
+--list, -l		- specify a config file. default is /usr/local/reaim/config
+--file, -f		- specify a workfile, default is /usr/local/reaim/workfile
+-x 			- run until the maxjobs rate declines 
+			TODO - find a non-coliding short name for this option
+--------------------------------------------

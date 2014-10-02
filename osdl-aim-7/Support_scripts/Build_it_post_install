@@ -1,0 +1,20 @@
+#! /bin/bash
+#
+# Get around HP-UX deficiency of not having -z flag in tar.
+
+SYSNAME=`uname -s`
+
+case $SYSNAME in
+	HP-UX)
+		if [ -f /usr/local/share/reaim/fakeh.tgz ]
+		then
+			echo Unzipping /usr/local/share/reaim/fakeh.tgz
+			gunzip < /usr/local/share/reaim/fakeh.tgz > /usr/local/share/reaim/fakeh.tar
+		else
+			echo Could not find /usr/local/share/reaim/fakeh.tgz
+		fi ;;
+	Linux)
+		echo nothing to do for Linux.;;
+	*)
+		echo Unknown machine.  Not doing anything.;;
+esac

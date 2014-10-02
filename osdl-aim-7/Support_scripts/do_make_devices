@@ -1,0 +1,261 @@
+#! /usr/bin/perl
+
+@INIT_ARGV = @ARGV;
+$program_name = $0;
+$program_dir = `dirname $0`;
+$verbose = 0;
+
+use lib "/usr/local/share/reaim/osdl-aim-7/Support_scripts";
+
+use lib	"Getopt";
+use POSIX;
+use Getopt::Std;
+use parse_config;
+
+Getopt::Std::getopts('hvf:');
+
+if ($opt_h) {
+	print STDERR "Usage: $program_name -h -v -f disk_config_file\n";
+	print STDERR "       -h => help\n";
+	print STDERR "       -v => verbose\n";
+	print STDERR "       -f disk_config_file => master disk configuration file\n";
+}
+if ($opt_v) {
+	$verbose = 1;
+}
+if ($opt_f) {
+	$disk_config_file = $opt_f;
+} else {
+	$disk_config_file = "master_disk_list";
+}
+
+#print STDERR "verbose: ", $verbose ? "true" : "false", "\n";
+$dir = `pwd`;
+print STDERR "\tdisk configuration file: $disk_config_file\n";
+print STDERR "\tfrom directory:          $dir\n";
+
+if ($opt_h) {
+	exit 0;
+}
+
+if (!parse_config::parse_disk_configuration_file($disk_config_file,$opt_f)) {
+	exit 1;
+}
+
+($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
+
+if ($sysname =~ /^[Ll]inux/) {
+	linux_version();
+} elsif ($sysname =~ /^[Hh][Pp]-[Uu][Xx]/) {
+	hpux_version();
+} else {
+	print STDERR "\tUnrecognized operating system type!\n";
+}
+
+sub linux_version {
+	$ramdisk_line = `grep ramdisk /proc/devices`;
+	$ramdisk_line =~ s/\s*$//;
+	if ($ramdisk_line =~ /\n/) {
+		print STDERR "\tUnexpected multiple line record from \"grep ramdisk /proc/devices\".\n";
+		if ($ramdisk_line =~ /ramdisk/) {
+			print STDERR "\tAttempting to continue, but creation of the correct device files is suspect.\n";
+			$ramdisk_line =~ s/ramdisk\s*.*$//;
+			$ramdisk_line =~ s/^.*\n[^\n]*ramdisk\s*.*$//;
+		} else {
+			print STDERR "\tNo ramdisk entry.  Not continuing\n";
+			exit 1;
+		}
+	} else {
+		if ($ramdisk_line !~ /ramdisk/) {
+			print STDERR "\tNo ramdisk entry.  Not continuing\n";
+			exit 1;
+		}
+	}
+	$ramdisk_line =~ /\s*(\d+)/;
+	$ramdisk_block_major = $1;
+	print STDERR "\tRamdisk block device number: $ramdisk_block_major\n";
+
+	for ($i = 0; $i < $disk_entries; $i++) {
+		if ($ramdisk[$i] =~ /^ram$/) {
+			$disk = $disks[$i];
+			if ($disk !~ /^\/dev\//) {
+				printf STDERR "\tDisk file \"$disk\" should be in the /dev/ directory.\n";
+				printf STDERR "\tContinuing, but there may be issues.\n";
+			}
+			$disk =~ /(\d+)$/;
+			$minor_decimal = $1;
+			$minor_hex = sprintf("%x", $minor_decimal);
+			if (-e $disk) {
+				# Could use "stat" functions here, but requires installing
+				# a non-default Perl package.  (Yet another requirement).
+				$ls_line = `ls -l $disk`;
+				if ( $ls_line =~ /^b/ ) {
+					$ls_line =~ /^\S+\s+\S+\s+\S+\s+\S+\s+(\d+),\s*([\dxa-fA-F]*)/;
+					$major = $1;
+					$minor = $2;
+					if (($major == $ramdisk_block_major) &&
+						($minor eq $minor_decimal)) {
+
+						print STDERR "\tBlock device \"$disk\" already exists with correct major/minor number\n";
+					} else {
+						print STDERR "\tBlock device \"$disk\" has major $major, minor $minor, rather than $ramdisk_block_major, $minor_decimal\n";
+					}
+				} else {
+					print STDERR "\t\"$disk\" is not a block device file.\n";
+				}
+			} else {
+				printf STDERR "\tmknod $disk b ${ramdisk_block_major} 0x${minor_hex}";
+				`mknod $disk b ${ramdisk_block_major} 0x${minor_hex}`;
+				$failure = $?;
+				if ($failure) {
+					printf STDERR ": unsuccessful!\n"
+				} else {
+					printf STDERR "\n"
+				}
+			}
+		} else {
+			if (-e $disks[$i]) {
+				$ls_line = `ls -l $disks[$i]`;
+				
+				if ( $ls_line =~ /^[bc]/ ) {
+					print STDERR "\tSkipping non-ram disk $disks[$i]: already exists, assuming correct.\n";
+				} else {
+					print STDERR "\tSkipping non-ram disk $disks[$i]: not a block or character device:\n\tI don't know whether this is correct.\n";
+				}
+			} else { # create the missing ramdisk(s) - we shouldn't have holes between /dev/ram0 and /dev/ram<$disk_entries-1>
+			    `mknod $disks[$i] b $ramdisk_block_major $i`;
+			    print STDERR "\tCreated new ramdisk $disks[$i] ($ramdisk_block_major,$i)\n"
+			}
+		}
+	}
+}
+
+sub hpux_version {
+	$ramdisk_line = `lsdev | grep ramdis`;
+	$ramdisk_line =~ s/\s*$//;
+	if ($ramdisk_line =~ /\n/) {
+		print STDERR "\tUnexpected multiple line record from \"lsdev | grep ramdis\".\n";
+		if ($ramdisk_line =~ /ramdis[ck]/) {
+			print STDERR "\tAttempting to continue, but creation of the correct device files is suspect.\n";
+			$ramdisk_line =~ s/ramdis[ck]\s*.*$//;
+			$ramdisk_line =~ s/^.*\n[^\n]*ramdisk\s*.*$//;
+		} else {
+			print STDERR "\tNo ramdisk entry.  Not continuing\n";
+			exit 1;
+		}
+	} else {
+		if ($ramdisk_line !~ /ramdis[ck]/) {
+			print STDERR "\tNo ramdisk entry.  Not continuing\n";
+			exit 1;
+		}
+	}
+	$ramdisk_line =~ /\s*([+-\d]+)\s+([+-\d]+)/;
+	$ramdisk_character_major = $1;
+	$ramdisk_block_major = $2;
+	print STDERR "\tRamdisk character device number: $ramdisk_character_major\n";
+	print STDERR "\tRamdisk block device number: $ramdisk_block_major\n";
+
+	for ($i = 0; $i < $disk_entries; $i++) {
+		if ($ramdisk[$i] =~ /^ram$/) {
+			$disk = $disks[$i];
+			if ($disk !~ /^\/dev\//) {
+				printf STDERR "\tDisk file \"$disk\" should be in the /dev/ directory.\n";
+				printf STDERR "\tContinuing, but there may be issues.\n";
+			}
+			$disk =~ /(\d+)$/;
+			$minor_decimal = $1;
+			$minor_hex = sprintf("%x", $minor_decimal);
+			if ($minor_decimal > 15) {
+				print STDERR "\tThere is currently a limit of 16 ramdisks on HP-UX due to issues of encoding\nthe minor number.\n";
+				next;
+			}
+
+			$minor_full = "0x${minor_hex}20001";
+
+			# HP-UX requires both a block and a character special device file
+			# for ramdisks, typically in /dev/{r}dsk/...  We allow either
+			# to be specified in the master file and look for both.
+
+			if ($disk =~ /^\/dev\/dsk\/(\S*)$/) {
+				$bdisk = $disk;
+				$cdisk = $disk;
+				$cdisk =~ s/^\/dev\/dsk\//\/dev\/rdsk\//;
+			} elsif ($disk =~ /^\/dev\/rdsk\/(\S*)$/) {
+				$cdisk = $disk;
+				$bdisk = $disk;
+				$bdisk =~ s/^\/dev\/rdsk\//\/dev\/dsk\//;
+			} else {
+				print STDERR "\tExpected \"$disk\" to be of format /dev/{r}dsk/...\n";
+				next;
+			}
+
+			if (-e $bdisk) {
+				# Could use "stat" functions here, but requires installing
+				# a non-default Perl package.  (Yet another requirement).
+				$ls_line = `ls -l $bdisk`;
+				if ( $ls_line =~ /^b/ ) {
+					$ls_line =~ /^\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s*([\dxa-fA-F]*)/;
+					$major = $1;
+					$minor = $2;
+					if (($major == $ramdisk_block_major) &&
+						($minor eq $minor_full)) {
+
+						print STDERR "\tBlock device \"$bdisk\" already exists with correct major/minor numbers\n";
+					} else {
+						print STDERR "\tBlock device \"$bdisk\" has major $major, minor $minor, rather than $ramdisk_block_major, $minor_full\n";
+					}
+				} else {
+					print STDERR "\t\"$bdisk\" is not a block device file.\n";
+				}
+			} else {
+				printf STDERR "\tmknod $bdisk b ${ramdisk_block_major} ${minor_full}\n";
+				`mknod $bdisk b ${ramdisk_block_major} ${minor_full}`;
+				$failure = $?;
+				if ($failure) {
+					printf STDERR ": unsuccessful!\n"
+				} else {
+					printf STDERR "\n"
+				}
+			}
+			if (-e $cdisk) {
+				# Could use "stat" functions here, but requires installing
+				# a non-default Perl package.  (Yet another requirement).
+				$ls_line = `ls -l $cdisk`;
+				if ( $ls_line =~ /^c/ ) {
+					$ls_line =~ /^\S+\s+\S+\s+\S+\s+\S+\s+(\d+)\s*([\dxa-fA-F]*)/;
+					$major = $1;
+					$minor = $2;
+					if (($major == $ramdisk_block_major) &&
+						($minor eq $minor_full)) {
+
+						print STDERR "\tCharacter device \"$cdisk\" already exists with correct major/minor numbers\n";
+					} else {
+						print STDERR "\tCharacter device \"$cdisk\" has major $major, minor $minor, rather than $ramdisk_block_major, $minor_full\n";
+					}
+				} else {
+					print STDERR "\t\"$cdisk\" is not a character device file.\n";
+				}
+			} else {
+				printf STDERR "\tmknod $cdisk c ${ramdisk_character_major} ${minor_full}\n";
+				`mknod $cdisk c ${ramdisk_character_major} ${minor_full}`;
+				$failure = $?;
+				if ($failure) {
+					printf STDERR ": unsuccessful!\n"
+				} else {
+					printf STDERR "\n"
+				}
+			}
+		} else {
+			if (-e $disks[$i]) {
+				$ls_line = `ls -l $disks[$i]`;
+				if ( $ls_line =~ /^[bc]/ ) {
+					print STDERR "\tSkipping non-ram disk $disks[$i]: already exists, assuming correct.\n";
+				} else {
+					print STDERR "\tSkipping non-ram disk $disks[$i]: not a block or character device:\n\tI don't know whether this is correct.\n";
+				}
+			} else {
+				print STDERR "\tSkipping non-ram disk $disks[$i]: does not exist and I don't know\n\thow to make it.\n";
+			}
+		}
+	}
+}

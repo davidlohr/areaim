@@ -1,0 +1,21 @@
+# These tests run very quickly
+# FILESIZE 1M
+# POOLSIZE 10M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+20 dgram_pipe
+20 jmp_test
+20 matrix_rtns
+20 mem_rtns_2
+20 misc_rtns_1
+20 mul_int
+20 mul_long
+20 mul_short
+20 new_raph
+20 num_rtns_1
+20 pipe_cpy
+20 ram_copy
+20 series_1
+20 shared_memory
+20 stream_pipe
+20 tcp_test
+20 udp_test

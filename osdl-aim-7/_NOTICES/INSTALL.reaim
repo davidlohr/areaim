@@ -1,0 +1,100 @@
+INSTALL 
+
+Currently crude, follows GNU auto* 
+
+./bootstrap
+./configure
+make
+make install 
+
+Notes:
+- no configure options inplemented
+- 'make install' will install the binary as
+/usr/local/bin/reaim and create
+/usr/local/share/reaim and
+/usr/local/share/reaim/results
+
+The setup script will do the best it can.
+
+To run:
+
+Copy the ./src/reaim binary up to ../
+(We'll call it HOME_DIR ) 
+There are some necessary scripts in the ./scripts directory, and right now
+that path is hardcoded, so you will have to execute from HOME_DIR.
+
+The default configuration file is /root/osdl-aim-7.0.1.10/reaim.config
+( -l option )
+Most of the options can be specified there or on the command line.
+ 
+ First, decide how much disk you want to use, reaim
+will want directory names. The list of directories should be in the 
+config file (reaim.config) like this:
+#---Disks--------
+DISKDIR /mnt/disk1
+DISKDIR /mnt/disk2
+#---Etc,etc
+
+Amount of IO is controlled by two params, (reaim.config):
+FILESIZE 10k # file size for each children
+POOLSIZE 1m  # This is used to divide up the IO between all children
+
+These parameters have a big effect on runtime, so i generally don't increase
+them much beyond default, if you want the test to run for a longer time, these are
+good to increase.
+
+The workload control files are in the ./data directory. ( -f option )
+I use the new_dbase and compute workloads in STP, you might find others usefull.
+I have made some attempts to create synthetic workloads based on the run time
+of each subtask, and on system/user time consumed by each task.
+I would welcome other new arrangements.
+
+From there, you have several options.
+You can run a fixed number of users, with a fixed increment:
+./reaim -f<workload> -l<configfile> -s<startuser> -e<endusers> -i<increment> -t 
+
+The -t option is from the orig code, and is an interactive increment function.
+It will attempt to guess the best number to increment by each pass. It makes
+the runs non-repeatable, so i generally avoid using it, but i respect history
+and keep it as defaut. 
+
+There are three other ways to stop the run:
+-x (--crossover ) is the old AIM cutoff, where jpm/user < 1.0 
+	On a 4-way, this option will run for about 8 hours, minimum.
+-q (--quick ) stops when jpm/user < 60.0 which makes for a shorter run.
+-g (--guesspeak ) is a simple test i added. It keeps a running count of max jpm, and
+	attempts to detect when max jpm is starting to decline as shown by 
+	a sample of the the last 5 increments. 
+
+For STP, i set the starting number equal to the number of CPUs, the increment
+equal to same, and run two passes, once with the -q and once with -g. I use
+the -r3 option which repeats the run 3 times, it does a crude rename of results
+during each pass. The -b option creates an html report.
+
+So:
+./reaim -s$CPU_COUNT -g -t -i$CPU_COUNT -f$workfile -r3 -b -l./reaim.config
+./reaim -s$CPU_COUNT -q -t -i$CPU_COUNT -f$workfile -r3 -b -l./reaim.config
+
+
+cd src
+./setup.sh
+./reaim 
+
+Current default is a 1 to 5 user run. 
+Options(subject to change):
+
+-d<x>, --debug<x> 	Turns on debug output, writes to /tmp/reaim.log
+			Larger numbers give more output.
+-v, --verbose	Prints some extra information
+-s<x>, --startusers <x> Number of users to start with
+-e<x>, --endusers <x> Maximum number of users to run (if not crossover)
+-i<x>, --increment <x> Amount to increment users 
+-f<s>, --file <s>	Workfile name (default "workfile")
+-c, --crossover		Run to crossover point
+-q, --quick		Run to 1/60 of crossover point
+-m, --multiuser		Run repeated loops (AIM7)
+-j<x>, --jobs	Number of tasks per user (default 100) 
+-o, --oneuser		Run single pass (AIM9)
+-t, --timeroff		Disable adaptive timer for increment
+-h, --help		help
+

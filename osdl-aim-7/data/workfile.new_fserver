@@ -1,0 +1,66 @@
+# @(#) workfile.fserver:1.3 1/22/96 00:00:00
+# New Fileserver Mix
+# Total hits: 580
+# Hits with 100% system: 120
+# Sync disk activity removed
+# FILESIZE: 10M
+# POOLSIZE: 20M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+20  add_int
+20  add_long
+20  add_short
+20  creat_clo
+20  dir_rtns_1
+30  disk_cp
+30  disk_rd
+30  disk_rr
+30  disk_rw
+30  disk_src
+30  disk_wrt
+10  div_int
+10  div_long
+10  div_short
+10  jmp_test
+20  link_test
+40  mem_rtns_1
+10  mem_rtns_2
+20  misc_rtns_1
+10  mul_int
+10  mul_long
+10  mul_short
+20  ram_copy
+10  signal_test
+30  sort_rtns_1
+30  string_rtns
+10  tcp_test
+40  udp_test
+# Workload breakdown
+# 20	add_int		3.45%
+# 20	add_long	3.45%
+# 20	add_short	3.45%
+# 20	creat_clo	3.45%
+# 20	dir_rtns_1	3.45%
+# 30	disk_cp		5.17%
+# 30	disk_rd		5.17%
+# 30	disk_rr		5.17%
+# 30	disk_rw		5.17%
+# 30	disk_src	5.17%
+# 30	disk_wrt	5.17%
+# 10	div_int		1.72%
+# 10	div_long	1.72%
+# 10	div_short	1.72%
+# 10	jmp_test	1.72%
+# 20	link_test	3.45%
+# 40	mem_rtns_1	6.90%
+# 10	mem_rtns_2	1.72%
+# 20	misc_rtns_1	3.45%
+# 10	mul_int		1.72%
+# 10	mul_long	1.72%
+# 10	mul_short	1.72%
+# 20	ram_copy	3.45%
+# 10	signal_test	1.72%
+# 30	sort_rtns_1	5.17%
+# 30	string_rtns	5.17%
+# 10	tcp_test	1.72%
+# 40	udp_test	6.90%
+# 580 Total hits

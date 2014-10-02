@@ -1,0 +1,5 @@
+
+1) need to figure out what parameters to use to run the aim9 workload so it
+   can be pulled into the run_reaim command by default.  Currently uses the 
+   same -s/-e/-j/-i parameters takes hours and hours to run.
+

@@ -1,0 +1,35 @@
+# sample workfile
+# This is a list of all tests known to re-aim
+# 4/2003 cliffw
+# Total hits: 930
+# His 100% user time: 310 
+# FILESIZE 100k
+# POOLSIZE 1M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+10 creat_clo
+10 dgram_pipe
+10 dir_rtns_1
+10 fork_test
+10 link_test
+10 misc_rtns_1
+10 page_test
+10 pipe_cpy
+10 shared_memory
+10 signal_test
+30 sieve
+10 fifo_test
+10 stream_pipe
+10 tcp_test
+10 udp_test
+20 disk_rr
+20 disk_rw
+20 disk_rd
+20 disk_wrt
+20 disk_cp
+20 disk_brr
+20 disk_brw
+20 disk_brd
+20 disk_bwrt
+20 disk_bcp
+20 sync_disk_rw
+20 disk_src

@@ -1,0 +1,17 @@
+# These tests all run in approx five seconds on a single PIII
+# Total Hits:220 
+# Each test = 9.0% of the total
+# FILESIZE 100K
+# POOLSIZE 1M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+20 add_short
+20 dir_rtns_1
+20 disk_cp
+20 disk_rd
+20 disk_rr
+20 disk_rw
+20 disk_src
+20 disk_wrt
+20 link_test
+20 page_test
+20 signal_test

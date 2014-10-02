@@ -1,0 +1,1589 @@
+#! /bin/bash
+
+#
+# sorted by shortest execution time
+#
+all_tests="short new_fserver five_sec fserver high_systime \
+	   new_dbase dbase shared alltests compute custom \
+	   long all_utime disk aim9"   
+
+all_tests="short dbase new_dbase compute all_utime disk alltests \
+	   five_sec long shared custom new_fserver fserver \
+	   high_systime aim9"   
+
+#
+# Default defines used throughout this script
+#
+cmd_name="$0"
+command_line="$*"
+name="`basename $0`" 
+log_dir="./results"
+kernel=""
+title=""
+wfile_loc="/usr/local/share/reaim"
+reaim_loc="/usr/local/share/reaim"
+support_loc="/usr/local/share/reaim/osdl-aim-7/Support_scripts"
+rm_logdir=0
+disk_list_loc="$support_loc"
+disk_list="$disk_list_loc/master_disk_list_ext4"
+ram_type="ext4"
+use_ramfs=1
+average=1
+do_perf=0
+
+run_aim9=0
+run_all_utime=1
+run_alltests=1
+run_compute=1
+run_custom=1
+run_dbase=1
+run_disk=1
+run_five_sec=1
+run_fserver=1
+run_high_systime=1
+run_long=1
+run_new_dbase=1
+run_new_fserver=1
+run_shared=1
+run_short=1
+
+#
+# break it apart into multiple runs so the user can choose a subset
+# rather than the full 10-2000 users
+#
+# DSP_OPTS is what will get written out to the log files and should be a
+# combination of OPTS1 and OPTS2
+#
+# OPTS4, OPTS5, and OPTS6 can be defined by the user or may get used in
+# future versions.
+#
+
+DSP_OPTS="-s10 -e2000 -t -j100 -i[10|100] -y"
+
+OPTS1="-s10   -e90   -t -j100 -i10  -y"
+OPTS2="-s100  -e1000 -t -j100 -i100 -y"
+OPTS3="-s1100 -e2000 -t -j100 -i100 -y"
+
+# not defined now - user can modify as desired
+OPTS4=""
+OPTS5=""
+OPTS6=""
+
+PERF="perf record -a -g -s"
+PERF_RPT="perf report -n --stdio"
+
+CMD_PRE=""
+
+CMD="$reaim_loc/reaim"
+
+all_opts_off()
+{
+	run_opts_1=0
+	run_opts_2=0
+	run_opts_3=0
+	run_opts_4=0
+	run_opts_5=0
+	run_opts_6=0
+}
+
+#
+# which options should we run
+#
+check_run_options()
+{
+	test_name="$1"
+
+	all_opts_off
+
+	if [ "$OPTS1" != "" ] ; then run_opts_1=1 ; fi
+
+	if [ "$OPTS2" != "" ] ; then run_opts_2=1 ; fi
+
+	if [ "$OPTS3" != "" ] ; then run_opts_3=1 ; fi
+
+	if [ "$OPTS4" != "" ] ; then run_opts_4=1 ; fi
+
+	if [ "$OPTS5" != "" ] ; then run_opts_5=1 ; fi
+
+	if [ "$OPTS6" != "" ] ; then run_opts_6=1 ; fi
+
+	if [ "$test_name" = "aim9" ] && [ $run_aim9 -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "all_utime" ] && [ $run_all_utime -eq 0 ] ; then 
+		all_opts_off 
+	fi
+
+	if [ "$test_name" = "alltests" ] && [ $run_alltests -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "compute" ] && [ $run_compute -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "custom" ] && [ $run_custom -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "dbase" ] && [ $run_dbase -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "disk" ] && [ $run_disk -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "five_sec" ] && [ $run_five_sec -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "fserver" ] && [ $run_fserver -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "high_systime" ]&&[ $run_high_systime -eq 0 ]; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "long" ] && [ $run_long -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "new_dbase" ] && [ $run_new_dbase -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "new_fserver" ] && [ $run_new_fserver -eq 0 ] ; then
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "shared" ] && [ $run_shared -eq 0 ] ; then 
+		all_opts_off
+	fi
+
+	if [ "$test_name" = "short" ] && [ $run_short -eq 0 ] ; then
+		all_opts_off 
+	fi
+}
+
+#
+# Run reaim for the one workfile test specified
+#
+run_test()
+{
+	tst=$1
+	avg_tmp=$2
+	pre_kernel="$3"
+
+	if [ "$pre_kernel" = "" ] ; then
+		my_kern="$kernel"
+	else
+		my_kern="$pre_kernel - $kernel"
+	fi
+
+	if [ "$CMD_PRE" = "" ] ; then
+		MY_CMD="$CMD"
+	else
+		MY_CMD="$CMD_PRE $CMD"
+	fi
+
+	check_run_options $tst
+
+	if [ $run_opts_1 -eq 0 ] && [ $run_opts_2 -eq 0 ] && \
+	   [ $run_opts_3 -eq 0 ] && [ $run_opts_4 -eq 0 ] && \
+	   [ $run_opts_5 -eq 0 ] && [ $run_opts_6 -eq 0 ] ; then
+		echo ""
+		echo "Not running $tst due to the requested options"
+		echo ""
+		return
+	fi
+
+	PERF_CMD=""
+	if [ $do_perf -ne 0 ] ; then
+		if [ ! -d $tst.perf ] ; then
+			mkdir $tst.perf
+		fi
+	fi
+
+	echo -e "****************************************\c"
+	echo -e "***************************************"
+	echo ""
+	echo ""
+
+	#########################################################
+	# save away the start time
+	#########################################################
+
+	ST_DATE="`date`"
+	ST_DATE_FORMATTED="`date +%Y-%m-%d\ %H:%M:%S`"
+	ST_DATE_SECONDS="`date --date="$ST_DATE_FORMATTED" +%s`"
+
+        echo "Starting workload $tst for $my_kern   ==>   $ST_DATE"
+
+	#########################################################
+	# Mount ramfs if desired
+	#########################################################
+
+	if [ $use_ramfs -ne 0 ] ; then
+		if [ "$tst" = "disk" ] && [ "$ram_type" = "ramfs" ] ; then
+			echo ""
+			echo "*** WARNING: Can't run disk with -ramfs... Using normal disk-based FS..."
+			echo ""
+		else
+			echo ""
+			echo "Mounting ram-based DISKDIR filesystems..."
+			echo ""
+			$support_loc/do_mount_file_systems -f $disk_list
+		fi
+	fi
+
+	#########################################################
+	# Clean up and files in our DISKDIR locations
+	#########################################################
+
+	echo ""
+	echo "Cleaning up temporary DISKDIR directories..."
+	echo ""
+	$support_loc/do_clean_file_systems -f $disk_list
+
+	#########################################################
+	# wipe out idle counters if available
+	#########################################################
+
+	procsys_dir="/proc/sys/kernel"
+
+	if [ -f $procsys_dir/idle_spin ] ; then
+		echo "0" > $procsys_dir/idle_spin
+	fi
+	if [ -f $procsys_dir/idle_power ] ; then
+		echo "0" > $procsys_dir/idle_power
+	fi
+
+	#########################################################
+	# Run test 
+	#########################################################
+
+	rm -f tmp.$$.1.reaim.csv tmp.$$.1.multiuser.ss
+	rm -f tmp.$$.2.reaim.csv tmp.$$.2.multiuser.ss
+	rm -f tmp.$$.3.reaim.csv tmp.$$.3.multiuser.ss
+	rm -f tmp.$$.4.reaim.csv tmp.$$.4.multiuser.ss
+	rm -f tmp.$$.5.reaim.csv tmp.$$.5.multiuser.ss
+	rm -f tmp.$$.6.reaim.csv tmp.$$.6.multiuser.ss
+
+	if [ $run_opts_1 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.10_90.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.10_90.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$PERF_CMD $MY_CMD $OPTS1 -f $wfile_loc/workfile.$tst"
+		echo ""
+		rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+		$PERF_CMD $MY_CMD $OPTS1 -f $wfile_loc/workfile.$tst
+	
+		cp reaim.csv     tmp.$$.1.reaim.csv
+		cp multiuser.ss  tmp.$$.1.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report 10-90 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	else	
+		echo -e "10\n20\n30\n40\n50\n60\n70\n80\n90" \
+						> tmp.$$.1.reaim.csv
+	fi
+
+	if [ $run_opts_2 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.100_1000.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.100_1000.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$PERF_CMD $MY_CMD $OPTS2 -f $wfile_loc/workfile.$tst"
+		echo ""
+                rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+                $PERF_CMD $MY_CMD $OPTS2 -f $wfile_loc/workfile.$tst
+
+		cp reaim.csv     tmp.$$.2.reaim.csv
+		cp multiuser.ss  tmp.$$.2.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report 100-1000 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	else	
+		echo -e "100\n200\n300\n400\n500\n600\n700\n800\n900\n1000" \
+						> tmp.$$.2.reaim.csv
+	fi
+
+	if [ $run_opts_3 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.1100_2000.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.1100_2000.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$PERF_CMD $MY_CMD $OPTS3 -f $wfile_loc/workfile.$tst"
+		echo ""
+                rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+                $PERF_CMD $MY_CMD $OPTS3 -f $wfile_loc/workfile.$tst
+
+		cp reaim.csv     tmp.$$.3.reaim.csv
+		cp multiuser.ss  tmp.$$.3.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report 1100-2000 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	else	
+		echo -e "1100\n1200\n1300\n1400\n1500\n1600\n1700\n1800\n1900\n2000" \
+						> tmp.$$.3.reaim.csv
+	fi
+
+	if [ $run_opts_4 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.opt4.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.opt4.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$MY_CMD $OPTS4 -f $wfile_loc/workfile.$tst"
+		echo ""
+                rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+                $MY_CMD $OPTS4 -f $wfile_loc/workfile.$tst
+
+		cp reaim.csv     tmp.$$.4.reaim.csv
+		cp multiuser.ss  tmp.$$.4.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report OPT4 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	fi
+
+	if [ $run_opts_5 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.opt5.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.opt5.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$MY_CMD $OPTS5 -f $wfile_loc/workfile.$tst"
+		echo ""
+                rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+                $MY_CMD $OPTS5 -f $wfile_loc/workfile.$tst
+
+		cp reaim.csv     tmp.$$.5.reaim.csv
+		cp multiuser.ss  tmp.$$.5.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report OPT5 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	fi
+
+	if [ $run_opts_6 -ne 0 ] ; then
+		if [ $do_perf -ne 0 ] ; then
+			PERF_DATA="$tst.perf/$tst.opt6.perf.$$.data"
+			PERF_OUT="$tst.perf/$tst.opt6.perf.$$.out"
+			PERF_CMD="$PERF -o $PERF_DATA"
+		fi
+
+		echo ""
+		echo "`date` ==> $tst"
+		echo ""
+		echo "$MY_CMD $OPTS6 -f $wfile_loc/workfile.$tst"
+		echo ""
+                rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+		touch reaim.csv ; touch multiuser.ss ; touch reaim.log
+
+                $MY_CMD $OPTS6 -f $wfile_loc/workfile.$tst
+
+		cp reaim.csv     tmp.$$.6.reaim.csv
+		cp multiuser.ss  tmp.$$.6.multiuser.ss
+
+		if [ $do_perf -ne 0 ] ; then
+			echo ""
+			echo "Generating perf report OPT6 users with:"
+			echo "$PERF_RPT -i $PERF_DATA > $PERF_OUT"
+			$PERF_RPT -i $PERF_DATA > $PERF_OUT
+			rm -f $PERF_DATA
+			echo ""
+		fi
+	fi
+
+	idle_loops="N/A"
+	idle_spin="N/A"
+	idle_power="N/A"
+
+	if [ -f $procsys_dir/idle_loops ] ; then
+		idle_loops="`cat $procsys_dir/idle_loops`"
+	fi
+	if [ -f $procsys_dir/idle_spin ] ; then
+		idle_spin="`cat $procsys_dir/idle_spin`"
+	fi
+	if [ -f $procsys_dir/idle_power ] ; then
+		idle_power="`cat $procsys_dir/idle_power`"
+	fi
+
+	if [ -f $procsys_dir/idle_loops ] || [ -f $procsys_dir/idle_loops ] || \
+	   [ -f $procsys_dir/idle_loops ] ; then
+		echo ""
+		echo "loops: $idle_loops, spin: $idle_spin, power: $idle_power"
+	fi
+
+	#########################################################
+	# Clean up and files in our DISKDIR locations
+	#########################################################
+
+	echo ""
+	echo "Cleaning up temporary DISKDIR directories..."
+	echo ""
+	$support_loc/do_clean_file_systems -f $disk_list
+
+
+	#########################################################
+	# Unmount ramfs if desired
+	#########################################################
+
+	if [ $use_ramfs -ne 0 ] ; then
+
+		if [ "$tst" = "disk" ] && [ "$ram_type" = "ramfs" ] ; then
+			echo ""
+			echo "*** WARNING: Didn't run disk with -ramfs..."
+			echo ""
+		else
+			echo ""
+			echo "Unmounting ram-based DISKDIR filesystems..."
+			echo ""
+			$support_loc/do_umount_file_systems -f $disk_list
+		fi
+	fi
+
+	#########################################################
+	# End date and calculate the test duration time
+	#########################################################
+
+	END_DATE="`date`"
+	END_DATE_FORMATTED="`date +%Y-%m-%d\ %H:%M:%S`"
+	END_DATE_SECONDS="`date --date="$END_DATE_FORMATTED" +%s`"
+
+	let "tsDiff=$END_DATE_SECONDS-$ST_DATE_SECONDS"
+
+	let "tmDiff=$tsDiff/60"		# total minutes
+	let "sDiff=$tsDiff%60"		# remainder seconds
+
+	let "hDiff=$tmDiff/60"		# total hours
+	let "hmDiff=$tmDiff%60"		# remainder minutes
+
+	float_pt_mins=`echo "scale=2; $sDiff * 1.6666666666666666666666 / 100 + $hmDiff + 0.01" | bc`
+
+	echo ""
+        echo "Started  workload $tst for $my_kern   ==>   $ST_DATE"
+        echo "Ending   workload $tst for $my_kern   ==>   $END_DATE"
+	echo "Elapsed time      $tst for $my_kern   ==>   $hDiff hrs, $hmDiff mins, $sDiff secs"
+	echo ""
+	echo ""
+
+	####################################################################
+	# Determine the highest JPM
+	####################################################################
+
+	high_jpm=0
+	high_jpm_users=0
+
+	high_set=`(
+        	cat tmp.$$.1.reaim.csv | grep -v "^Forks"
+        	cat tmp.$$.2.reaim.csv | grep -v "^Forks"
+        	cat tmp.$$.3.reaim.csv | grep -v "^Forks"
+        	if [ $run_opts_4 -ne 0 ] ; then
+                	cat tmp.$$.4.reaim.csv | grep -v "^Forks"
+        	fi
+        	if [ $run_opts_5 -ne 0 ] ; then
+                	cat tmp.$$.5.reaim.csv | grep -v "^Forks"
+        	fi
+        	if [ $run_opts_6 -ne 0 ] ; then
+                	cat tmp.$$.6.reaim.csv | grep -v "^Forks"
+        	fi
+	) | awk -F, '{print $2 " " $1}' | sort -n | tail -1`
+
+	high_jpm=`echo "$high_set" | awk '{printf("%s", $1);}'`
+	high_jpm_users=`echo "$high_set" | awk '{printf("%s", $2);}'`
+
+	####################################################################
+	# Save data in .csv (comma separated values) files. 
+	# Append so future runs go in the same file for comparision
+	####################################################################
+
+	tmp_out="$tst.$$.csv.tmp"
+
+	echo -e "Title:,$title"                                   >> $tmp_out
+	echo -e "Kernel:,$my_kern"                                >> $tmp_out
+	echo -e "Date:,`date`"                                    >> $tmp_out
+	echo -e "Command:,\c"                                     >> $tmp_out
+	echo "$MY_CMD $DSP_OPTS -f $wfile_loc/workfile.$tst"      >> $tmp_out
+	echo -e "Workload:,$tst"                                  >> $tmp_out
+	echo -e "Time:,mins:,$float_pt_mins,\c"                   >> $tmp_out
+	echo -e "==,mins:,$tmDiff,secs:,$sDiff"                   >> $tmp_out
+	grep "^Forks" reaim.csv                                   >> $tmp_out
+	cat tmp.$$.1.reaim.csv | grep -v "^Forks"                 >> $tmp_out
+	cat tmp.$$.2.reaim.csv | grep -v "^Forks"                 >> $tmp_out
+	cat tmp.$$.3.reaim.csv | grep -v "^Forks"                 >> $tmp_out
+	if [ $run_opts_4 -ne 0 ] ; then
+		cat tmp.$$.4.reaim.csv | grep -v "^Forks"         >> $tmp_out
+	fi
+	if [ $run_opts_5 -ne 0 ] ; then
+		cat tmp.$$.5.reaim.csv | grep -v "^Forks"         >> $tmp_out
+	fi
+	if [ $run_opts_6 -ne 0 ] ; then
+		cat tmp.$$.6.reaim.csv | grep -v "^Forks"         >> $tmp_out
+	fi
+
+	echo -e "High JPM:,$high_jpm,$high_jpm_users,users,\c"    >> $tmp_out
+
+	if [ -f $procsys_dir/idle_loops ] || \
+	   [ -f $procsys_dir/idle_loops ] || \
+	   [ -f $procsys_dir/idle_loops ] ; then
+
+	    echo "loops:,$idle_loops,spin:,$idle_spin,power:,$idle_power" \
+							          >> $tmp_out
+	else	
+	    echo ""                                               >> $tmp_out
+	fi
+	echo -e "*********,***********  Data Separator\c"         >> $tmp_out
+	echo -e "  *****************************"                 >> $tmp_out
+
+	cat $tmp_out >> $tst.csv
+	cat $tmp_out >> $avg_tmp
+	rm -f $tmp_out
+
+	####################################################################
+	# Save data in .ssv (space separated values) files.
+	# Append so future runs go in the same file for comparision
+	####################################################################
+
+	tmp_out="$tst.$$.ssv.tmp"
+
+	echo -e "Title:    $title"                                >> $tmp_out
+	echo -e "Kernel:   $my_kern"                              >> $tmp_out
+	echo -e "Date:     `date`"                                >> $tmp_out
+	echo -e "Command:  \c"                                    >> $tmp_out
+        echo "$MY_CMD $DSP_OPTS -f $wfile_loc/workfile.$tst"      >> $tmp_out
+	echo -e "Workload: $tst"                                  >> $tmp_out
+	echo -e "Time:     $float_pt_mins mins \c"                >> $tmp_out
+	echo -e "== $tmDiff mins, $sDiff secs"                    >> $tmp_out
+
+	tail -2 reaim.log                                         >> $tmp_out
+#                Jobs/min/  Jobs/sec/   Time:   Time:  Time:   Time:          Running child time
+#Forks  Jobs/min   child     child      parent  childU childS  std_dev  JTI   :max  :min
+
+	if [ $run_opts_1 -ne 0 ] ; then
+		cat tmp.$$.1.multiuser.ss                         >> $tmp_out
+	fi
+	if [ $run_opts_2 -ne 0 ] ; then
+		cat tmp.$$.2.multiuser.ss                         >> $tmp_out
+	fi
+	if [ $run_opts_3 -ne 0 ] ; then
+		cat tmp.$$.3.multiuser.ss                         >> $tmp_out
+	fi
+	if [ $run_opts_4 -ne 0 ] ; then
+		cat tmp.$$.4.multiuser.ss                         >> $tmp_out
+	fi
+	if [ $run_opts_5 -ne 0 ] ; then
+		cat tmp.$$.5.multiuser.ss                         >> $tmp_out
+	fi
+	if [ $run_opts_6 -ne 0 ] ; then
+		cat tmp.$$.6.multiuser.ss                         >> $tmp_out
+	fi
+	echo ""                                                   >> $tmp_out
+	echo "Highest JPM:  $high_jpm  at  $high_jpm_users  users" >> $tmp_out
+	echo ""                                                   >> $tmp_out
+
+	if [ -f $procsys_dir/idle_loops ] || [ -f $procsys_dir/idle_loops ] || \
+	   [ -f $procsys_dir/idle_loops ] ; then
+		echo "loops: $idle_loops, spin: $idle_spin, power: $idle_power"\
+							          >> $tmp_out
+	else
+		echo ""                                           >> $tmp_out
+	fi
+	echo ""                                                   >> $tmp_out
+	echo -e "*********************  Data Separator\c"         >> $tmp_out
+	echo -e "  *****************************"                 >> $tmp_out
+
+	cat $tmp_out >> $tst.ssv
+	rm -f $tmp_out
+
+	#########################################################
+	# cleanup temporary files
+	#########################################################
+
+	rm -f reaim.csv multiuser.ss reaim.log reaim.debuglog
+	rm -f tmp.$$.1.reaim.csv tmp.$$.1.multiuser.ss
+	rm -f tmp.$$.2.reaim.csv tmp.$$.2.multiuser.ss
+	rm -f tmp.$$.3.reaim.csv tmp.$$.3.multiuser.ss
+	rm -f tmp.$$.4.reaim.csv tmp.$$.4.multiuser.ss
+	rm -f tmp.$$.5.reaim.csv tmp.$$.5.multiuser.ss
+	rm -f tmp.$$.6.reaim.csv tmp.$$.6.multiuser.ss
+}
+
+average_calc() 
+{
+	tst="$1"
+	input="$2"
+	my_kern="$3"
+	avg_out="$tst.avg"
+
+	data_pts="10 20 30 40 50 60 70 80 90 100 200 300 400 500 600 \
+		  700 800 900 1000 1100 1200 1300 1400 1500 1600 1700 \
+		  1800 1900 2000"
+
+	head -6 $input | \
+	    sed 's/^Kernel:,[0-9]*\/[0-9]* - /Kernel:,average - /' | \
+	    sed 's/Time:[0-9a-zA-Z:=.,]*$/Time:/'              >> $avg_out.csv
+
+	head -6 $input | \
+            awk -F, '{
+		     printf("%-9s %s %s %s %s %s %s %s %s %s\n", 
+		            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10); 
+		}' | \
+	    sed 's/^Kernel:   [0-9]*\/[0-9]* - /Kernel:   average - /' | \
+	    sed 's/Time:[0-9a-zA-Z:=., ]*$/Time:/'             >> $avg_out.ssv
+
+	echo "Jobs,Avg,Median,High,Low,H/L_Diff,H/L_Pct,Val1,Diff1,Pct1,Val2,Diff2,Pct2,..."  \
+                                                               >> $avg_out.csv
+	(
+		echo -e "Jobs Avg Median High Low H/L_Diff H/L_Pct \c"
+		echo -e "Val1 Diff1 Pct1 Val2 Diff2 Pct2 Val3 Diff3 Pct3" 
+		echo -e "---- --- ------ ---- --- -------- ------- \c"
+		echo -e "---- ----- ---- ---- ----- ---- ---- ----- ----" 
+	) | \
+	awk '{ printf(   \
+	   "%-4s %11s %11s %8s %8s %8s %8s %11s %10s %7s %11s %10s %7s %11s %10s %7s\n",
+	    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16); 
+	}'                                                     >> $avg_out.ssv
+
+	high_avg=0
+	high_avg_users=0
+	high_single=0
+	high_single_users=0
+	high_median=0
+	high_median_users=0
+
+	for jobs in $data_pts ; do
+
+		# get all data - need newline to pipe through sort
+		vals=`grep "^$jobs," $input | awk -F, '{ printf("%s\n", $2); }'`
+
+		# sort the data numerically
+		new_vals=`echo "$vals"| sort -n  | awk '{ printf("%s ", $1); }'`
+		vals="$new_vals"
+
+		############################################################
+		# sum up all the data, maintain high and low values
+		############################################################
+
+		total=0
+		num=0
+		low=99999999999999999
+		high=0
+	
+		# Sum up all vals
+		for i in $vals ; do
+	
+			int_val=`echo "$i" | sed 's/.[0-9][0-9]$//'`
+		
+			if [ $int_val -lt $low ]  ; then low=$int_val  ; fi
+			if [ $int_val -gt $high ] ; then high=$int_val ; fi
+
+			if [ $int_val -gt $high_single ] ; then 
+				high_single=$int_val 
+				high_single_users=$jobs
+			fi
+	
+			new_total=` echo "scale=2; $i+$total" | bc `
+			total=$new_total
+	
+			(( num=num+1 ))
+		done
+
+		if [ $num -eq 0 ] ; then
+			echo "$jobs,"                          >> $avg_out.csv
+			echo "$jobs"                           >> $avg_out.ssv
+			continue
+		fi
+	
+		# don't know why, but must do this to work around a shell bug
+		new_total=`echo "$total" | awk '{print $1}'`
+		total=$new_total
+
+		############################################################
+		# calculate the average
+		############################################################
+		
+		if [ $num -eq 1 ] ; then
+			avg="$total"
+		else
+			avg=`echo "scale=2; $total/$num" | bc`
+
+			# similar shell bug, won't let anything be after "$avg"
+			new_avg=`echo "$avg" | awk '{print $1}'`
+			avg=$new_avg
+		fi
+
+		int_avg=`echo "$avg" | sed 's/.[0-9][0-9]$//'`
+	
+		if [ $int_avg -gt $high_avg ] ; then 
+			high_avg=$int_avg 
+			high_avg_users=$jobs
+		fi
+
+		############################################################
+		# calculate the median
+		############################################################
+
+		if [ $num -eq 1 ] ; then
+			med="$total"
+		else
+			(( middle=num/2 ))
+			(( most=$middle*2 ))
+
+			if [ $num -eq $most ] ; then
+        			(( middle1=middle   ))
+				(( middle2=middle+1 ))
+	
+				tmp=1
+				for i in $vals ; do
+					if [ $tmp -eq $middle1 ] ; then
+						mid1="$i"
+					fi
+					if [ $tmp -eq $middle2 ] ; then
+						mid2="$i"
+					fi
+					(( tmp=tmp+1 ))
+				done
+	
+				med_sum=`echo "$mid1+$mid2" | bc`
+				# similar shell bug
+				new_med_sum=`echo "$med_sum" | awk '{print $1}'`
+				med_sum=$new_med_sum
+	
+				med_avg=`echo "scale=2; $med_sum/2" | bc`
+				# similar shell bug
+				new_med_avg=`echo "$med_avg" | awk '{print $1}'`
+				med_avg=$new_med_avg
+	
+				med="$med_avg"
+			else
+        			(( middle1=middle+1 ))
+				tmp=1
+				for i in $vals ; do
+					if [ $tmp -eq $middle1 ] ; then
+						med="$i"
+						break;
+					fi
+					(( tmp=tmp+1 ))
+				done
+			fi
+		fi
+
+		int_med=`echo "$med" | sed 's/.[0-9][0-9]$//'`
+	
+		if [ $int_med -gt $high_median ] ; then 
+			high_median=$int_med 
+			high_median_users=$jobs
+		fi
+
+                ############################################################
+                # Calculate diff between high and low values
+                ############################################################
+
+                # calculate the difference from high
+                #
+                hl_diff=`echo "scale=2; $high-$low" | bc`
+                new_diff=`echo "$hl_diff" | awk '{print $1}'`
+                hl_diff=$new_diff
+
+                # calculate the percentage of the diff from high
+                #
+                hl_pct=`echo "scale=4; $hl_diff/$high*100" | bc | \
+                     sed 's/[0-9][0-9]$//'`
+                new_pct=`echo "$hl_pct" | awk '{print $1}'`
+                hl_pct=$new_pct
+
+		
+		############################################################
+		# output avg, median, high, and low values
+		############################################################
+		
+		echo -e "$jobs,$avg,$med,$high,$low,$hl_diff,$hl_pct%\c"  \
+						               >> $avg_out.csv
+
+		echo -e "$jobs $avg $med $high $low $hl_diff $hl_pct%" | \
+			awk '{ printf("%-4s %11s %11s %8s %8s %8s %8s", 
+				$1,$2,$3,$4,$5,$6,$7); }'      >> $avg_out.ssv
+
+		############################################################
+		# calculate and output the difference and percentage for
+		# each value from the average
+		############################################################
+		
+		for i in $vals ; do
+
+			# calculate the difference from average
+			#
+			diff=`echo "scale=2; $i-$avg" | bc`
+			new_diff=`echo "$diff" | awk '{print $1}'`
+			diff=$new_diff
+
+			# calculate the percentage of the diff from avg
+			#
+			pct=`echo "scale=4; $diff/$avg*100" | bc | \
+			     sed 's/[0-9][0-9]$//'`
+			new_pct=`echo "$pct" | awk '{print $1}'`
+			pct=$new_pct
+
+			echo -e ",$i,$diff,$pct%\c"            >> $avg_out.csv
+
+			echo -e " $i $diff $pct%" | \
+			  awk '{printf(" %11s %10s %7s",$1,$2,$3);}'\
+							       >> $avg_out.ssv
+
+		done
+
+		echo ""                                        >> $avg_out.csv
+		echo ""                                        >> $avg_out.ssv
+	done
+
+	# output the highest values
+	echo ""                                                >> $avg_out.ssv
+	echo "Highest JPM Average:  $high_avg  at  $high_avg_users users" \
+							       >> $avg_out.ssv
+	echo "Highest JPM Median:   $high_median  at  $high_median_users users"\
+							       >> $avg_out.ssv
+	echo "Highest JPM Single:   $high_single  at  $high_single_users users"\
+							       >> $avg_out.ssv
+	echo ""                                                >> $avg_out.ssv
+
+	echo -e "High Average:,$high_avg\c"                    >> $avg_out.csv
+	echo -e ",$high_avg_users,users\c"                     >> $avg_out.csv
+	echo -e ",High Median:,$high_median\c"                 >> $avg_out.csv
+	echo -e ",$high_median_users,users\c"                  >> $avg_out.csv
+	echo -e ",High Single:,$high_single\c"                 >> $avg_out.csv
+	echo -e ",$high_single_users,users\c"                  >> $avg_out.csv
+	echo -e ""                                             >> $avg_out.csv
+
+	# data separator
+	tail -1 $input                                         >> $avg_out.csv
+	tail -1 $input | sed 's/,/*/'                          >> $avg_out.ssv
+}
+
+
+#
+# run all the tests specified in the $all_tests variable
+#
+run_all_tests()  
+{
+	##############################################################
+	# Make sure we have the test disk directories as specified
+	# in the reaim.config and master_disk_list files. We need this
+	# even if we don't use ramfs since it's also what's specified
+	# in the reaim.config file.
+	##############################################################
+
+   	echo -e "*****************************************************\c"
+	echo -e "**************************"
+	echo ""
+	echo "Creating mount points for temporary DISKDIR directories..."
+	echo ""
+	$support_loc/do_mkdir_file_systems -f $disk_list 
+	echo ""
+   	echo -e "*****************************************************\c"
+	echo -e "**************************"
+
+	##############################################################
+	# Create ram-based devices and filesystems if needed
+	##############################################################
+
+	if [ $use_ramfs -ne 0 ] ; then
+		echo ""
+		echo "Creating ram-based devices..."
+		echo ""
+		$support_loc/do_make_devices -f $disk_list
+		echo ""
+   		echo -e "***************************************************\c"
+		echo -e "****************************"
+
+		mkfs_out="mkfs.out.$$"
+		echo ""
+		echo "Creating ram-based DISKDIR filesystems..."
+		echo ""
+		echo "Check $log_dir/$mkfs_out for mkfs output"
+		echo ""
+		$support_loc/do_make_file_systems -f $disk_list > $mkfs_out 2>&1
+		data_warning=`grep "WARNING:" $mkfs_out`
+		retval=$?
+		if [ $retval -eq 0 ] ; then
+			echo "$mkfs_out contains the following WARNINGS:"
+			echo ""
+			echo "$data_warning"
+			echo ""
+		fi
+		echo ""
+   		echo -e "***************************************************\c"
+		echo -e "****************************"
+	fi
+
+	##############################################################
+	# Save away the start times
+	##############################################################
+
+        ALL_ST_DATE="`date`"
+        ALL_ST_DATE_FORMATTED="`date +%Y-%m-%d\ %H:%M:%S`"
+        ALL_ST_DATE_SECONDS="`date --date="$ALL_ST_DATE_FORMATTED" +%s`"
+
+	##############################################################
+	# Run each workfile test
+	##############################################################
+
+    	for my_test in $all_tests ; do
+
+		avg_tmp="$my_test.avg.$$.tmp"
+
+		rm -f $avg_tmp
+
+		i=1
+		while [ $i -le $average ] ; do
+			if [ $average -gt 1 ] ; then
+				echo ""	
+				echo "Running $my_test $i of $average times..."	
+				echo ""	
+				run_test $my_test $avg_tmp "$i/$average"
+			else
+				echo ""	
+				echo "Running $my_test..." 
+				echo ""	
+				run_test $my_test $avg_tmp
+			fi
+    			echo -e "**********************************\c"
+			echo -e "**********************************\c"
+			echo -e "***********"
+			(( i=i+1 ))
+		done
+
+		# create average files
+		
+		if [ $average -gt 1 ] && [ -f $avg_tmp ] ; then
+			echo ""
+			echo "Averaging results for $my_test..."
+			echo ""
+			average_calc $my_test $avg_tmp "$kernel"
+
+    			echo -e "**********************************\c"
+			echo -e "**********************************\c"
+			echo -e "***********"
+		fi
+		rm -f $avg_tmp
+
+    	done
+	
+	##############################################################
+	# Execution times
+	##############################################################
+
+	ALL_END_DATE="`date`"
+	ALL_END_DATE_FORMATTED="`date +%Y-%m-%d\ %H:%M:%S`"
+	ALL_END_DATE_SECONDS="`date --date="$ALL_END_DATE_FORMATTED" +%s`"
+
+	let "tsDiff=$ALL_END_DATE_SECONDS-$ALL_ST_DATE_SECONDS"
+
+	let "tmDiff=$tsDiff/60"		# total minutes
+	let "sDiff=$tsDiff%60"		# remainder seconds
+
+        let "hDiff=$tmDiff/60"		# total hours
+        let "hmDiff=$tmDiff%60"		# remainder hours
+
+    	echo ""
+    	echo "Started        run  ==>  $ALL_ST_DATE"
+    	echo "Completed      run  ==>  $ALL_END_DATE"
+	echo "Total Elapsed time  ==>  $hDiff hrs, $hmDiff mins, $sDiff secs"
+    	echo ""
+}
+
+
+list_tests() 
+{
+
+	echo -e "Avail Workloads:  \c"
+	i=0
+	for test_name in $all_tests ; do
+	#       echo -e "$test_name \c"
+        	echo "$test_name" | awk '{printf("%-11s ",$1);}'
+        	let "i=$i+1"
+        	if [ $i -ge 5 ] ; then
+                	echo -e ""
+                	echo -e "                  \c"
+                	i=0
+        	fi
+	done
+	echo -e ""
+}
+
+
+display_args()
+{
+	echo ""
+    	echo -e "****************************************\c"
+    	echo -e "***************************************"
+
+	#
+	# Check to make sure DISKDIR /tmp/diskdir was commented out.
+	# Warn if not.
+	#
+	line="`grep DISKDIR $reaim_loc/reaim.config | \
+	       grep /tmp/diskdir | \
+	       sed 's/\#/\# /'`"
+	
+	comment=`echo "$line" | awk '{ printf("%s", $1); }'`
+
+	if [ "$comment" != "#" ] ; then
+        	echo ""
+        	echo ""
+        	echo "*** CONFIGURATION WARNING ***"
+        	echo ""
+        	echo "WARNING:  \"DISKDIR /tmp/diskdir\" is not commented out"
+        	echo "          in $reaim_loc/reaim.config"
+        	echo ""
+        	echo "          Disk access may all be in one directory and"
+        	echo "          may not completely use any ram-based FS option."
+        	echo ""
+        	echo "    edit $reaim_loc/reaim.config"
+        	echo "    to comment out \"DISKDIR /tmp/diskdir\""
+        	echo ""
+        	echo "    edit $support_loc/master_disk_list"
+        	echo "    as appropriate to specify temporary disk directories"
+        	echo "    and then run the scripts:"
+        	echo ""
+        	echo "    $support_loc/do_make_devices"
+        	echo "    $support_loc/do_mkdir_file_systems"
+        	echo "    $support_loc/do_modify_reaim_config"
+        	echo ""
+        	echo ""
+	fi
+
+
+        #
+        # output the specifics of what we are running
+        #
+        echo ""
+        echo "Started   workload run  ==>  `date`"
+        echo ""
+        echo "cmd_line:      $cmd_name $command_line"
+        echo ""
+        echo "Output dir:    $log_dir"
+        echo "Output file:   $log_dir/$name.out"
+        echo ""
+        echo "Kernel:        $kernel"
+        echo "Title:         $title"
+	echo ""
+	if [ "$CMD_PRE" != "" ] ; then
+		echo "cmd prefix:    $CMD_PRE"
+	else
+		echo "cmd prefix:    No"
+	fi
+	if [ $average -gt 1 ] ; then
+		echo "Average:       $average times"
+	else
+		echo "Average:       No"
+	fi
+	if [ $do_perf -ne 0 ] ; then
+		echo "Run perf:      Yes"
+	else
+		echo "Run perf:      No"
+	fi
+        echo ""
+	if [ $use_ramfs -eq 0 ] ; then
+		echo "ram-based fs:  No"
+	else
+		echo "ram-based fs:  Yes"
+		echo "ram FS type:   $ram_type"
+	fi
+        echo ""
+        list_tests
+
+        echo ""
+        if [ $run_aim9 -eq 1 ] ; then		echo "Running:      aim9" ; fi
+        if [ $run_all_utime -eq 1 ] ; then	echo "Running:      all_utime" ; fi
+        if [ $run_alltests -eq 1 ] ; then	echo "Running:      alltests" ; fi
+        if [ $run_compute -eq 1 ] ; then	echo "Running:      compute" ; fi
+        if [ $run_custom -eq 1 ] ; then		echo "Running:      custom" ; fi
+        if [ $run_dbase -eq 1 ] ; then		echo "Running:      dbase" ; fi
+        if [ $run_disk -eq 1 ] ; then		echo "Running:      disk" ; fi
+        if [ $run_five_sec -eq 1 ] ; then	echo "Running:      five_sec" ; fi
+        if [ $run_fserver -eq 1 ] ; then	echo "Running:      fserver" ; fi
+        if [ $run_high_systime -eq 1 ] ; then	echo "Running:      high_systime" ; fi
+        if [ $run_long -eq 1 ] ; then		echo "Running:      long" ; fi
+        if [ $run_new_dbase -eq 1 ] ; then	echo "Running:      new_dbase" ; fi
+        if [ $run_new_fserver -eq 1 ] ; then	echo "Running:      new_fserver";fi
+        if [ $run_shared -eq 1 ] ; then		echo "Running:      shared" ; fi
+        if [ $run_short -eq 1 ] ; then		echo "Running:      short" ; fi
+
+        echo ""
+
+        if [ $run_aim9 -eq 0 ] ; then		echo "Not running:  aim9" ; fi
+        if [ $run_all_utime -eq 0 ] ; then	echo "Not running:  all_utime" ; fi
+        if [ $run_alltests -eq 0 ] ; then	echo "Not running:  alltests" ; fi
+        if [ $run_compute -eq 0 ] ; then	echo "Not running:  compute" ; fi
+        if [ $run_custom -eq 0 ] ; then		echo "Not running:  custom" ; fi
+        if [ $run_dbase -eq 0 ] ; then		echo "Not running:  dbase" ; fi
+        if [ $run_disk -eq 0 ] ; then		echo "Not running:  disk" ; fi
+        if [ $run_five_sec -eq 0 ] ; then	echo "Not running:  five_sec" ; fi
+        if [ $run_fserver -eq 0 ] ; then	echo "Not running:  fserver" ; fi
+        if [ $run_high_systime -eq 0 ] ; then	echo "Not running:  high_systime" ; fi
+        if [ $run_long -eq 0 ] ; then		echo "Not running:  long" ; fi
+        if [ $run_new_dbase -eq 0 ] ; then	echo "Not running:  new_dbase" ; fi
+        if [ $run_new_fserver -eq 0 ] ; then	echo "Not running:  new_fserver";fi
+        if [ $run_shared -eq 0 ] ; then		echo "Not running:  shared" ; fi
+        if [ $run_short -eq 0 ] ; then		echo "Not running:  short" ; fi
+
+        echo ""
+
+        echo "Using: "
+        if [ "$OPTS1" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS1 -f $wfile_loc/workfile.<test>"
+        fi
+        if [ "$OPTS2" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS2 -f $wfile_loc/workfile.<test>"
+        fi
+        if [ "$OPTS3" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS3 -f $wfile_loc/workfile.<test>"
+        fi
+        if [ "$OPTS4" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS4 -f $wfile_loc/workfile.<test>"
+        fi
+        if [ "$OPTS5" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS5 -f $wfile_loc/workfile.<test>"
+        fi
+        if [ "$OPTS6" != "" ] ; then
+                echo "    $CMD_PRE $CMD $OPTS6 -f $wfile_loc/workfile.<test>"
+        fi
+        echo ""
+
+}
+
+
+set_kernel_tuneables()
+{
+	echo ""
+    	echo -e "****************************************\c"
+    	echo -e "***************************************"
+	echo ""
+	echo "Checking to see if required sysctl values are ok..."
+	echo ""
+
+	# need to bump up SysV Semaphore limits (max semaphore sets)
+	#
+	# semmsl (1st field 250 default)   - max sema per id
+	# semmns (2nd field 32000 default) - system max
+	#                                    (cant be greater than 
+	#				     "semmsl * semmni")
+	# semopm 3rd field 32 default)     - max ops for 1 call
+	# semmni (4th field 128)           - max sema sets
+
+	echo "Checking kernel.sem"
+	sem_vals="`sysctl -n kernel.sem`"
+	sem_sets=`echo "$sem_vals" | awk '{print $4}'`
+
+	if [ $sem_sets -lt 3000 ] ; then
+		echo -e "\tSysV sem values set too low: $sem_sets"
+		echo -e "\tAdjusting with sysctl..."
+
+		echo -e "\t\c"
+		sysctl -w kernel.sem="250 750000 32 3000"
+		echo ""
+	fi
+
+        mem=$( free | grep Mem | awk '{print$2}' )
+        totmem=$( echo "$mem*1024" | bc )
+        page=$( grep Hugepagesize /proc/meminfo | awk '{print $2}' )
+        totpage=$( echo "$page*1024" | bc )
+        all=$( echo "$totmem/$totpage" | bc )
+
+	echo "Checking kernel.shmmax"
+        val="`sysctl -n kernel.shmmax`"
+        if [ $val -lt $totmem ] ; then
+                echo -e "\tSysV shmmax values set too low: $val"
+                echo -e "\tAdjusting with sysctl..."
+
+		echo -e "\t\c"
+                sysctl -w kernel.shmmax=$totmem
+                echo ""
+        fi
+
+	echo "Checking kernel.shmall"
+        val="`sysctl -n kernel.shmall`"
+        if [ $val -lt $all ] ; then
+                echo -e "\tSysV shmall values set too low: $val"
+                echo -e "\tAdjusting with sysctl..."
+
+		echo -e "\t\c"
+                sysctl -w kernel.shmall=$all
+                echo ""
+        fi
+
+
+	# need to set net.netfilter.nf_conntrack_max to unlimited
+	#
+	echo "Checking net.netfilter.nf_conntrack_max"
+	if [ -f /proc/sys/net/netfilter/nf_conntrack_max ] ; then
+		conntrack_max="`sysctl -n net.netfilter.nf_conntrack_max`"
+
+		if [ $conntrack_max -ne -1 ] ; then
+			echo -e "\tnet.netfilter.nf_conntrack_max value set wrong: $conntrack_max"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.netfilter.nf_conntrack_max=-1
+			echo ""
+		fi
+	fi
+
+	echo "Checking net.ipv4.tcp_fin_timeout"
+	if [ -f /proc/sys/net/ipv4/tcp_fin_timeout ] ; then
+		tmp="`sysctl -n net.ipv4.tcp_fin_timeout`"
+		if [ $tmp -ne 35 ] ; then
+			echo -e "\tnet.ipv4.tcp_fin_timeout value set wrong: $tmp"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.ipv4.tcp_fin_timeout=35
+			echo ""
+		fi
+	fi
+
+	echo "Checking net.ipv4.tcp_keepalive_time"
+	if [ -f /proc/sys/net/ipv4/tcp_keepalive_time ] ; then
+		tmp="`sysctl -n net.ipv4.tcp_keepalive_time`"
+		if [ $tmp -ne 1800 ] ; then
+			echo -e "\tnet.ipv4.tcp_keepalive_time value set wrong: $tmp"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.ipv4.tcp_keepalive_time=1800
+			echo ""
+		fi
+	fi
+
+	echo "Checking net.ipv4.tcp_keepalive_intvl"
+	if [ -f /proc/sys/net/ipv4/tcp_keepalive_intvl ] ; then
+		tmp="`sysctl -n net.ipv4.tcp_keepalive_intvl`"
+		if [ $tmp -ne 35 ] ; then
+			echo -e "\tnet.ipv4.tcp_keepalive_intvl value set wrong: $tmp"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.ipv4.tcp_keepalive_intvl=35
+			echo ""
+		fi
+	fi
+
+	echo "Checking net.ipv4.tcp_tw_recycle"
+	if [ -f /proc/sys/net/ipv4/tcp_tw_recycle ] ; then
+		tmp="`sysctl -n net.ipv4.tcp_tw_recycle`"
+		if [ $tmp -ne 1 ] ; then
+			echo -e "\tnet.ipv4.tcp_tw_recycle value set wrong: $tmp"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.ipv4.tcp_tw_recycle=1
+			echo ""
+		fi
+	fi
+
+	echo "Checking net.ipv4.tcp_tw_reuse"
+	if [ -f /proc/sys/net/ipv4/tcp_tw_reuse ] ; then
+		tmp="`sysctl -n net.ipv4.tcp_tw_reuse`"
+		if [ $tmp -ne 1 ] ; then
+			echo -e "\tnet.ipv4.tcp_tw_reuse value set wrong: $tmp"
+			echo -e "\tAdjusting with sysctl..."
+
+			echo -e "\t\c"
+			sysctl -w net.ipv4.tcp_tw_reuse=1
+			echo ""
+		fi
+	fi
+
+	echo ""
+}
+
+
+help_display()
+{
+	echo -e ""
+        echo -e "Usage: $name"
+	echo -e ""
+        echo -e "\t-k <kernel>      # name to appear on graph line"
+        echo -e "\t-t <title>       # name to appear on graph title (ie, system name/type)"
+        echo -e "\t-d <log_dir>     # output logging directory (default: \"./results\")"
+        echo -e "\t-c <cmd>         # reaim preface (for ex: -c \"chrt --fifo 3\")"
+        echo -e "\t-r               # remove old logging directory files first"
+        echo -e "\t-h               # help menu"
+	echo -e ""
+        echo -e "\t-ramfs           # use a ramfs for workloads"
+        echo -e "\t-ext4_ramdisk    # use an ext4 ramdisk for workloads (default)"
+        echo -e "\t-ext3_ramdisk    # use an ext3 ramdisk for workloads"
+        echo -e "\t-ext2_ramdisk    # use an ext2 ramdisk for workloads"
+        echo -e "\t-diskfs          # use a diskfs for workloads"
+	echo -e ""
+        echo -e "\t-avg <num>       # average <num> runs"
+	echo -e ""
+        echo -e "\t-perf            # use perf record and perf report with each run"
+	echo -e ""
+	echo -e "\t-x1              # do *not* run 10-90     users option"
+	echo -e "\t-x2              # do *not* run 100-1000  users option"
+	echo -e "\t-x3              # do *not* run 1100-2000 users option"
+	echo -e "\t-x4              # do *not* run \$OPTS4 users option (currently unused)"
+	echo -e "\t-x5              # do *not* run \$OPTS5 users option (currently unused)"
+	echo -e "\t-x6              # do *not* run \$OPTS6 users option (currently unused)"
+	echo -e ""
+	echo -e "\t-<workload>      # do *not* run <workload>"
+        echo -e ""
+	echo -e "\t+<workload>      # only run <workload>"
+        echo -e ""
+	echo -e "\t-aim9only        # only run aim9"
+        echo -e ""
+        echo -e "    -k <kernel> and -t <title> are required"
+        echo -e ""
+	list_tests
+        echo -e ""
+}
+
+set_all_tests_off()
+{
+	run_all_utime=0      
+	run_alltests=0       
+	run_compute=0        
+	run_custom=0         
+	run_dbase=0          
+	run_disk=0           
+	run_five_sec=0       
+	run_fserver=0        
+	run_high_systime=0   
+	run_long=0           
+	run_new_dbase=0      
+	run_new_fserver=0    
+	run_shared=0         
+	run_short=0          
+}
+
+first_time=1
+
+ck_first()
+{
+	if [ $first_time -eq 1 ] ; then
+		set_all_tests_off
+		first_time=0
+	fi
+}
+
+
+process_args()
+{
+	error=0
+
+        while test "$#" -gt 0; do
+                opt="$1"
+                shift
+
+                case $opt in
+                        -k)  	 kernel="$1";         shift  ;;
+                        -t)  	 title="$1";          shift  ;;
+                        -d)  	 log_dir="$1";        shift  ;;
+                        -c)  	 CMD_PRE="$1";        shift  ;;
+                        -r)  	 rm_logdir=1                 ;;
+
+                        -diskfs) 
+				 use_ramfs=0;   
+				 ;;
+                        -ramfs)  
+				 use_ramfs=1;   
+				 disk_list="$disk_list_loc/master_disk_list_ramfs"
+				 ram_type="ramfs"
+				 ;;
+                        -ext4_ramdisk)  
+				 use_ramfs=1;  
+				 disk_list="$disk_list_loc/master_disk_list_ext4"
+				 ram_type="ext4"
+				 ;;
+                        -ext3_ramdisk)  
+				 use_ramfs=1;   
+				 disk_list="$disk_list_loc/master_disk_list_ext3"
+				 ram_type="ext3"
+				 ;;
+                        -ext2_ramdisk)  
+				 use_ramfs=1;   
+				 disk_list="$disk_list_loc/master_disk_list_ext2"
+				 ram_type="ext2"
+				 ;;
+
+                        -avg)  	 average=$1 ;         shift  ;;
+
+                        -perf) 	 do_perf=1 ;                 ;;
+
+			-x1) 	 OPTS1=""                    ;;
+			-x2) 	 OPTS2=""                    ;;
+			-x3)	 OPTS3=""                    ;;
+			-x4)	 OPTS4=""                    ;;
+			-x5)	 OPTS5=""                    ;;
+			-x6)	 OPTS6=""                    ;;
+
+			-all_utime)	run_all_utime=0      ;;
+			-alltests)	run_alltests=0       ;;
+			-compute)	run_compute=0        ;;
+			-custom)	run_custom=0         ;;
+			-dbase)		run_dbase=0          ;;
+			-disk)		run_disk=0           ;;
+			-five_sec)	run_five_sec=0       ;;
+			-fserver)	run_fserver=0        ;;
+			-high_systime)	run_high_systime=0   ;;
+			-long)		run_long=0           ;;
+			-new_dbase)	run_new_dbase=0      ;;
+			-new_fserver)	run_new_fserver=0    ;;
+			-shared)	run_shared=0         ;;
+			-short)		run_short=0          ;;
+
+			+all_utime)	ck_first ; run_all_utime=1      ;;
+			+alltests)	ck_first ; run_alltests=1       ;;
+			+compute)	ck_first ; run_compute=1        ;;
+			+custom)	ck_first ; run_custom=1         ;;
+			+dbase)		ck_first ; run_dbase=1          ;;
+			+disk)		ck_first ; run_disk=1           ;;
+			+five_sec)	ck_first ; run_five_sec=1       ;;
+			+fserver)	ck_first ; run_fserver=1        ;;
+			+high_systime)	ck_first ; run_high_systime=1   ;;
+			+long)		ck_first ; run_long=1           ;;
+			+new_dbase)	ck_first ; run_new_dbase=1      ;;
+			+new_fserver)	ck_first ; run_new_fserver=1    ;;
+			+shared)	ck_first ; run_shared=1         ;;
+			+short)		ck_first ; run_short=1          ;;
+
+			-aim9only)
+				run_aim9=1
+				all_tests="aim9"
+				;;
+                        -h|-help|--help)
+				help_display
+                             	exit 1
+                             	;;
+                        *)
+                            	echo ""
+                            	echo "Error: got unknown \"$opt\" option"
+				error=1
+                            	;;
+                esac
+        done
+
+	if [ $error -ne 0 ] ; then
+		help_display
+		exit 1
+	fi
+
+        if [ "$average" != "1" ] ; then
+		if [ $average -lt 1 ] ; then
+                	echo "-avg [ num ] :  num must be greater than 1"
+                	echo "Error: "
+                	help_display
+                	exit 1
+		fi
+	fi
+
+        if [ "$kernel" = "" ] || [ "$title" = "" ] ; then
+                echo ""
+                echo "Error: both -k <kernel> and -t <title> are required"
+                help_display
+                exit 1
+        fi
+}
+
+
+main()
+{
+	process_args "$@"
+
+	echo ""
+	echo "Output being redirected to file: $log_dir/$name.out"
+	echo ""
+	echo "Check $log_dir/$name.out for errors"
+	echo ""
+
+	if [ $rm_logdir -ne 0 ] ; then
+		rm -rf $log_dir/*
+		# rm -rf $log_dir
+	fi
+	if [ ! -d $log_dir ] ; then
+		mkdir $log_dir
+	fi
+
+	cd $log_dir
+	
+	set_kernel_tuneables > $name.out 2>&1
+
+	display_args        >> $name.out 2>&1
+	
+	run_all_tests       >> $name.out 2>&1
+	
+	cp $name.out  $name.out.$$
+}
+
+main "$@"
+
+exit 0
+

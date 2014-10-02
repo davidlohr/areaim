@@ -1,0 +1,23 @@
+#These tests take longer than five seconds on a PIII single CPU system
+# Total Hits: 180
+# FILESIZE 100k 
+# POOLSIZE 1M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+10 add_double
+10 add_float
+10 add_int
+10 add_long
+10 brk_test
+10 div_double
+10 div_float
+10 div_int
+10 div_long
+10 div_short
+10 mem_rtns_1
+10 mul_double
+10 mul_float
+10 shell_rtns_1
+10 shell_rtns_2
+10 shell_rtns_3
+10 sort_rtns_1
+10 trig_rtns

@@ -1,0 +1,30 @@
+# sample workfile
+# These tests consume 100% user time
+# Total hits: 170
+# Filesize controlled by reaim.config now - uncomment to over-ride
+# FILESIZE 10K
+# POOLSIZE 10M
+20 add_double
+15 add_float
+10 add_long
+10 add_int
+05 add_short
+10 jmp_test
+10 div_double
+10 div_float
+10 div_long
+10 div_int
+10 div_short
+10 mul_double
+10 mul_float
+10 mul_long
+10 mul_int
+10 mul_short
+# 10 trig_rtns
+# 10 mem_rtns_1
+# 10 new_raph
+# 10 array_rtns
+# 10 string_rtns
+# 10 sort_rtns_1
+# 10 matrix_rtns
+# 10 mem_rtns_2

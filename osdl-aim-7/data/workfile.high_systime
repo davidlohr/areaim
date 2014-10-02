@@ -1,0 +1,28 @@
+# sample workfile
+# This is a list of all tests 
+# where the consumption of systime is noticeable larger
+# than the consumption of user time
+# Does no IO
+# 4/2003 cliffw
+# Total hits: 930
+# His 100% user time: 310 
+# Filesize controlled by reaim.config now - uncomment to over-ride
+# POOLSIZE
+20  creat_clo
+20 brk_test
+10 dgram_pipe
+10 dir_rtns_1
+20 exec_test
+10 fork_test
+20 link_test
+10 misc_rtns_1
+20 page_test
+30 pipe_cpy
+10 shared_memory
+20 shell_rtns_1
+10 signal_test
+10 stream_pipe
+10 tcp_test
+10 udp_test
+10 shell_rtns_2
+10 shell_rtns_3

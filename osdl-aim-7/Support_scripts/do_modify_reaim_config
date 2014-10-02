@@ -1,0 +1,142 @@
+#! /usr/bin/perl
+
+@INIT_ARGV = @ARGV;
+$program_name = $0;
+$program_dir = `dirname $0`;
+$verbose = 0;
+$quiet = 0;
+
+use lib "/usr/local/share/reaim/osdl-aim-7/Support_scripts";
+
+use lib	"Getopt";
+use Getopt::Std;
+use parse_config;
+
+Getopt::Std::getopts('hvqf:r:');
+
+if ($opt_h) {
+	print STDERR "Usage: $program_name -h -v -f disk_config_file -r reaim_config_file\n";
+	print STDERR "       -h => help\n";
+	print STDERR "       -v => verbose\n";
+	print STDERR "       -q => don't ask for interrupt (install process)\n";
+	print STDERR "       -f disk_config_file => master disk configuration file\n";
+	print STDERR "       -r reaim_config_file => configuration file for re-AIM7\n";
+}
+if ($opt_v) {
+	$verbose = 1;
+}
+if ($opt_q) {
+	$quiet = 1;
+}
+if ($opt_f) {
+	$disk_config_file = $opt_f;
+} else {
+	$disk_config_file = "master_disk_list";
+}
+if ($opt_r) {
+	$reaim_config_file = $opt_r;
+} else {
+	$reaim_config_file = "/usr/local/share/reaim/reaim.config";
+}
+
+#print STDERR "verbose: ", $verbose ? "true" : "false", "\n";
+print STDERR "\tdisk configuration file: $disk_config_file\n";
+print STDERR "\treaim configuration file: $reaim_config_file\n";
+
+if ($opt_h) {
+	exit 0;
+}
+
+if (!parse_config::parse_disk_configuration_file($disk_config_file,$opt_f)) {
+	exit 1;
+}
+
+if (!parse_config::parse_reaim_configuration_file($reaim_config_file)) {
+	exit 2;
+}
+
+if ($config_line_num == 0) {
+	# Empty or non-existent configuration file.
+	# Write a basic one.
+	$ret = open CFILE, "> $reaim_config_file";
+	if (! $ret) {
+		print STDERR "\tOpen of \"$reaim_config_file\" for write failed!\n";
+		exit 3;
+	}
+	print CFILE "FILESIZE 10m\n";
+	print CFILE "POOLSIZE 20m\n";
+	for ($i = 0; $i < $disk_entries; $i++) {
+		if ($testdir[$i] =~ /^test$/) {
+			print CFILE "DISKDIR $diskdirectories[$i]\n";
+		}
+	}
+	close CFILE;
+
+} else {
+	$config_changes = 0;
+	for ($cl = 0; $cl < $config_line_num; $cl++) {
+		$cline = $config_line[$cl];
+		if ($cline =~ /^\s*$/) {
+			next;
+		}
+		if ($cline =~ /^#/) {
+			next;
+		}
+		if ($cline =~ /^D/) {
+			# Reaim config only keys on 'D'
+			$cline =~ /^D\S*\s+(\S+)/;
+			$directory = $1;
+			$diskdir_hash_entry = $diskdir_hash { $directory };
+			if ( ! $diskdir_hash_entry) {
+				print STDERR "\n\tThe reaim config file has a test directory \"$directory\" not in\n";
+				print STDERR "\tthe master disk configuration list.  This entry should be removed, or\n";
+				print STDERR "\tan appropriate entry should be added to the disk configuration list.\n";
+			} else {
+				$dent = $diskdir_hash_entry - 1;
+				$testdir[$dent] = "testfound";
+			}
+		}
+	}
+	for ($i = 0; $i < $disk_entries; $i++) {
+		if ($testdir[$i] =~ /^test$/) {
+			$config_changes++;
+		}
+	}
+	if ($config_changes) {
+		my $previous_default = select(STDOUT); # save previous default
+		#####    $|++; # autoflush STDOUT
+		select(STDERR);
+		$|++; # autoflush STDERR, to be sure
+		select($previous_default); # restore previous default
+
+		print STDERR "\n\tWarning: about to overwrite reaim configuration file!\n";
+		if (! $quiet) {
+			print STDERR "\n\tPausing 10 seconds---Interrupt if you do not want to continue! ";
+			sleep (10);
+			print STDERR "\n";
+		}
+		$ret = open CFILE, "> $reaim_config_file";
+		if (! $ret) {
+			print STDERR "\tOpen of \"$reaim_config_file\" for write failed!\n";
+			exit 4;
+		}
+		for ($cl = 0; $cl < $config_line_num; $cl++) {
+			print CFILE "$config_line[$cl]\n";
+		}
+		for ($i = 0; $i < $disk_entries; $i++) {
+			if ($testdir[$i] =~ /^test$/) {
+				print CFILE "DISKDIR $diskdirectories[$i]\n";
+			}
+		}
+		close CFILE;
+	}
+}
+
+if ($verbose) {
+	print STDERR "\tDisk directories ($disk_entries entries):\n";
+	for ($i = 0; $i < $disk_entries; $i++) {
+		print STDERR "\t$diskdirectories[$i]\n";
+	}
+}
+
+exit 0;

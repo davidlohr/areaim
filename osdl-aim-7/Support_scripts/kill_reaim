@@ -1,0 +1,25 @@
+
+#
+# Kill the master script first
+#
+ID="`ps -ef | grep run_reaim | awk '{print $2}'`"
+
+if [ "$ID" != "" ] ; then
+	kill -9 $ID
+fi
+
+#
+# Kill all the "reaim" processes that were started
+#
+ID="`ps -ef | grep reaim | awk '{print $2}'`"
+
+for i in $ID; do
+	kill -9 $i
+done
+
+#
+# Unmount the ramfs if they were mounted
+#
+cd /usr/local/share/reaim/osdl-aim-7/Support_scripts
+./do_umount_file_systems
+

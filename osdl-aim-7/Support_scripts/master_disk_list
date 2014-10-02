@@ -1,0 +1,34 @@
+# Master disk list:  two purposes: 1) Input to scripts to create device files,
+# make file systems, mount and unmount temporary file systems for I/O tests;
+# and, 2) create input to benchmark tests to tell them where to find the
+# temporary file systems and/or I/O targets.
+# 
+# device - device file path (may be created if ram)
+# mount-point - file system path at which file system is mounted (or "none")
+# ram/io - either "ram" for ram-disk or "io" for actual io device
+# test-target - either "test" for test-file-system or "nontest" for support fs
+# sizeKB - size in kilobytes (1024)
+# fstype - file-system type (or "none")
+# create-opt - options passed to mkfs (for default options: "")
+# mount-opt - options passed to mount (for default options: "")
+# 
+# device	mnt-pt	ram/io	test	sizeKB	fstype	create-opt		mount-opt
+# ------	------	------	----	------	------	----------		---------
+/dev/ram0	/t0	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram1	/t1	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram2	/t2	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram3	/t3	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram4	/t4	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram5	/t5	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram6	/t6	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram7	/t7	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram8	/t8	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram9	/t9	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram10	/t10	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram11	/t11	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram12	/t12	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram13	/t13	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram14	/t14	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+/dev/ram15	/t15	ram	test	131072	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+#/dev/ram255	/tmp	ram	nontest	524288	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"
+#/dev/ram254   /var/tmp	ram	nontest 524288	ext4	"-b 4096 -J size=4"	"-o journal_async_commit,nobarrier,async,noatime,nodiratime"

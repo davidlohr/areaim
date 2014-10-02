@@ -1,0 +1,114 @@
+                            AIM Multiuser Benchmark
+
+OVERVIEW
+The AIM Multiuser Benchmark - Suite VII tests and measures the performance of
+Open System multiuser computers. Multiuser computer environments typically have
+the following general characteristics in common: 
+
+- A large number of tasks are run concurrently 
+- Disk storage increases dramatically as the number of users increase. 
+- Complex numerically intense applications are performed infrequently 
+- An important amount of time is spent sorting and searching through large
+  amounts of data. 
+- After data is used it is placed back on disk because it is a shared resource. 
+- A large amount of time is spent in common runtime libraries. 
+
+Multiuser systems are commonly used to support the following types of user
+environments: 
+
+- Multiuser/shared system environment performing office automation, word
+  processing, spreadsheet, email, database, payroll, and data processing. 
+- Compute server environment that uses an extremely large quantity of data,
+  performs large quantities of floating point calculations, and large amounts
+  of Interprocess Communications (IPC) for graphics. 
+- Large database environment with a lot of disk I/O, data in memory, and IPC
+  via shared memory.
+- File server environment with a heavy concentration of integer compute file
+  system operations. 
+
+
+The AIM Multiuser Benchmark, also called the AIM Benchmark Suite VII or AIM7, 
+is a job throughput benchmark widely used by UNIX computer system vendors.
+The original code was from AIM Technology, Inc., who licensed it to others. 
+Caldera International, Inc., bought the license and released the source code 
+for Suites VII and IX under the GPL.
+
+AIM7 is a C program that forks many processes which represent jobs or users. 
+Each job is composed of as much as 53 assorted tests blended to create a 
+workload that exercises a different aspect of the operating system such as 
+disk-file operations, process creation, user virtual memory operations, 
+pipe I/O, and compute-bound arithmetic loops. The test proportions are 
+specified via a workfile used to define the workload.
+
+A complete AIM7 benchmark run is comprised of a series of independent runs of 
+the selected workload at different requested loads, specified in terms of a 
+number of jobs. Each individual run executes until all of its jobs have 
+completed the set of randomly ordered tests specified by the workfile. A number 
+of metrics describing the results at that load point are reported including 
+the rate at which the system under test was able to complete the work, or the
+number of jobs completed per minute. The metric of greatest interest is peak 
+system throughput, the throughput obtained at some requested load (in terms 
+of a number of jobs per minute) that was greater than the throughput obtained 
+for all other requested loads. I.E., a given system will have a peak number of 
+tasks N at which the jobs per minute is maximized.  Either N, or the value of 
+the jobs per minute at N, is considered the peak system throughput.
+
+The number of requested jobs per load point defaults to increasing by one, 
+however using the adaptive option the number of requested jobs can increase 
+by much more than one.
+
+The AIM suite provides several examples of these workloads including 
+simulations of databases, file servers, and compute servers. As mentioned the 
+workload can be adjusted by altering test weight or modifying the test mix in 
+the workfile.
+
+The default workloads for AIM7 are compute loads (CPU scalability), shared 
+users (VM and file systems), database workload (mix weighted toward disks 
+random I/O), and file server (mix weighted towards sequential and random disk 
+I/O).
+
+The workloads will continue to add user processes where each process runs a 
+mix of operations. A metric for the number of jobs per minute (jobs/min) 
+represents the throughput for the system under test (SUT). A balanced system 
+should allow server memory, disks, and file systems to be added to the SUT 
+until the number of processes exceeds the number of jobs/min. This metric is 
+called the AIM7 "crossover-point" or when sustained throughput equals the 
+jobs/min. Historically this was considered an excellent measure of performance 
+because many times a system's expandability does not match the hardware level 
+and its ability for the OS to scale. However, as system's performance has
+increased (better JPM throughput) it can take many hours for a workload to
+reach the "crossover-point". As such, we mainly focus on the JPM metric
+and the scalability graphs of Users vs JPM.
+
+
+LICENSE
+This software is distributed under the GNU General Public License - see the
+accompanying COPYING file for more details.
+
+SUPPORTED OPERATING SYSTEMS
+This software was designed to run properly on any POSIX-compliant operating
+system. An ANSI C compiler is required.
+
+DOCUMENTATION
+The original AIM documentation has been restored from a printed copy. The
+original document was scanned, OCR'ed, edited for contents and converted
+manually into HTML format. The base document is "doc/main.html."
+
+INSTALLATION
+Please refer to the INSTALL file.
+
+TRADEMARKS
+"AIM Benchmark" and "Hot Iron Awards" are trademarks of Caldera
+International, Inc. (Caldera) in the USA and other countries. Caldera allows
+use of "AIM" and "AIM Benchmarks" when presenting performance results, but
+places restrictions on this to promote comparability of results and avoid
+confusion. Results presented using the terms "AIM" and "AIM Benchmark" must be
+obtained with an official version of the benchmark, as designated by Caldera,
+using one of the standard distributed workload mixes. No right or license is
+granted hereunder to use the Caldera trademarks for modified benchmark versions
+or for other purposes without the prior written permission of Caldera. Should
+you need to contact Caldera about that topic, please e-mail
+aimbench@sourceforge.net.
+
+"UNIX" is a trademark of the The Open Group.
+

@@ -1,0 +1,10 @@
+FILESIZE 1M
+POOLZISE 10M
+20 array_rtns
+20 exec_test
+20 fork_test
+20 string_rtns
+20 sync_disk_cp
+20 sync_disk_rw
+20 sync_disk_update
+20 sync_disk_wrt

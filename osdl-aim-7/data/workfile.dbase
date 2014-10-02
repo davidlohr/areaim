@@ -1,0 +1,56 @@
+# @(#) workfile.dbase:1.3 1/22/96 00:00:00
+# Large Database Mix
+# Unchanged from AIM
+# Total Hits: 550
+# Hits with 100% user time: 120 ( 21.8 % )
+# FILESIZE: 1M
+# POOLSIZE: 25M
+# Filesize controlled by reaim.config now - uncomment to over-ride
+20  add_int
+20  add_long
+20  add_short
+40  disk_rd
+40  disk_rr
+10  div_int
+10  div_long
+10  div_short
+10  jmp_test
+40  mem_rtns_1
+40  mem_rtns_2
+10  mul_int
+10  mul_long
+10  mul_short
+40  page_test
+20  ram_copy
+40  shared_memory
+30  sieve
+30  sort_rtns_1
+10  stream_pipe
+30  string_rtns
+30  sync_disk_rw
+30  sync_disk_update
+# Calculated percentages
+#Hits           Name            Percent of total
+#20		add_int	 	3.64
+#20		add_long	3.64
+#20		add_short	3.64
+#40		disk_rd	 	7.27
+#40		disk_rr	 	7.27
+#10		div_int	 	1.82
+#10		div_long	1.82
+#10		div_short	1.82
+#10		jmp_test	1.82
+#40		mem_rtns_1	7.27
+#40		mem_rtns_2	7.27
+#10		mul_int	 	1.82
+#10		mul_long	1.82
+#10		mul_short	1.82
+#40		page_test	7.27
+#20		ram_copy	3.64
+#40		shared_memory	7.27
+#30		sieve	 	5.45
+#30		sort_rtns_1	5.45
+#10		stream_pipe	1.82
+#30		string_rtns	5.45
+#30		sync_disk_rw	5.45
+#30		sync_disk_update	5.45

@@ -1,0 +1,82 @@
+$Date$ First created
+	10/20/04
+	Added sql/ directory for MySQL database of stp results.
+
+	10/15/03
+	Merging changes from SuSE.
+	
+	05/21/03
+	setup.sh fix from akpm
+	04/14/03
+	Fixed installation routine - files now installed in /usr/local/reaim, 
+	binary in /usr/local/bin. 
+	Tested. 
+
+	04/09/03
+
+	Added workfile arg - 
+	Altered shared_memory - increased list of sizes[] - now goes to
+		65536 by powers of 2. 
+	03/30/03
+	Very slow at the change log
+	All disk functions now added 
+	Speed of disk functions totally depends on FILESIZE param
+	10k is good 
+
+	03/17/03
+	Code is now compiling
+	Replaced static cmdargs[] with single linked list, 
+	using a global_list pointer for register_test 
+	Removed the dummy NOCMD test, i think this is the 
+	end of the static data. 
+
+	Fixed a few issues with the list removal. 
+
+	added command line args. default with no args is 1->5 users. 
+
+	Need to add adaptive timers, crossover test/switch
+This will be a long list.
+
+Problem 1. Too many static global data structures, number
+	of tests restricted by mystery #defines
+
+	- Replaced the cmdargs array with a linked list
+	- linked list now holds both the cmdargs and hit
+	count information. 
+
+	- Increased the number of parameters passed to 
+	functions in many cases. 
+
+	added aimlist.h for the linked list
+
+Problem 2. Signal handling reported to produce errors.
+
+	Partial solution: use libltp sig_tst function
+	to catch unexpected signals
+	
+	Replaced various signal handlers with the tst_sig()
+	function from libltp calling one sighandler.
+
+	I don't think floating point errors are a big
+	concern today, so that signal does nothing
+
+	TODO: Look at tst_exit()
+
+
+	RANTS
+
+	child signal handlers, sets to SIG_IGN, then just
+	returns..la de da..shouldn't this exit()??
+
+	line 699 origonal - if args != NOCMD proceed, if not,
+	go ahead anyway with invalid pointers. 
+
+	Replaced old-stye testing of wait() with modern macros
+	On SIGHUP, there is a call to wait, this needs to be traced with
+	a debugger - does the wait() ever return?
+
+-----------------------
+
+
+
+

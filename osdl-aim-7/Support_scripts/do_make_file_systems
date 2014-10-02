@@ -1,0 +1,224 @@
+#! /usr/bin/perl
+
+@INIT_ARGV = @ARGV;
+$program_name = $0;
+$program_dir = `dirname $0`;
+$verbose = 0;
+
+use lib "/usr/local/share/reaim/osdl-aim-7/Support_scripts";
+
+use lib	"Getopt";
+use POSIX;
+use Getopt::Std;
+use parse_config;
+
+Getopt::Std::getopts('hvf:');
+
+if ($opt_h) {
+	print STDERR "Usage: $program_name -h -v -f disk_config_file\n";
+	print STDERR "       -h => help\n";
+	print STDERR "       -v => verbose\n";
+	print STDERR "       -f disk_config_file => master disk configuration file\n";
+}
+if ($opt_v) {
+	$verbose = 1;
+}
+if ($opt_f) {
+	$disk_config_file = $opt_f;
+} else {
+	$disk_config_file = "master_disk_list";
+}
+
+#print STDERR "\tverbose: ", $verbose ? "true" : "false", "\n";
+$dir = `pwd`;
+print STDERR "\tdisk configuration file: $disk_config_file\n";
+print STDERR "\tfrom directory:          $dir\n";
+
+
+if ($opt_h) {
+	exit 0;
+}
+
+if (!parse_config::parse_disk_configuration_file($disk_config_file,$opt_f)) {
+	exit 1;
+}
+
+($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
+
+$linux = 0;
+$hpux = 0;
+
+if ($sysname =~ /^[Ll]inux/) {
+	$dfcmd = "df -a";
+	$linux = 1;
+} elsif ($sysname =~ /^[Hh][Pp]-[Uu][Xx]/) {
+	$dfcmd = "bdf";
+	$hpux = 1;
+} else {
+	print STDERR "\tUnrecognized operating system type!\n";
+}
+
+$mounted_fs = `$dfcmd`;
+
+if ($mounted_fs !~ /\n$/) {
+	$mounted_fs =~ s/$/\n/;
+}
+
+$mount_count = 0;
+
+while ($mounted_fs ne "") {
+	$mounted_fs =~ s/^(.*)?\n//;
+	$line = $1;
+	$line =~ s/\n*$//;
+	if ($line =~ /^\s*$/) {
+		next;
+	}
+	if ($line =~ /^Filesystem\s/) {
+		next;
+	}
+	if ($line =~ /^\S+\s*$/) {
+		$mounted_fs =~ s/^(.*)?\n//;
+		$cline = $1;
+		$cline =~ s/\n*$//;
+		if ($cline !~ /^\s+\S/) {
+			print STDERR "\tBad mounted fs continuation in \"$line\" \"$cline\" pair.\n";
+			print STDERR "\tAttempting to continue, but bad results might occur.\n";
+		}
+		$line = $line . $cline;
+	}
+
+	if ($line !~ /^\S/) {
+		print STDERR "\tMount entry beginning with white space---are we out of sync?\n";
+	}
+
+	$line =~ /^(\S+)\s.*(\S+)\s*$/;
+	$device = $1;
+	$mount_point = $2;
+
+	$mount_devices[$mount_count] = $device;
+	$mount_points[$mount_count] = $mount_point;
+	$mount_devices_hash{$device} = $mount_count+1;
+	$mount_points_hash{$mount_point} = $mount_count+1;
+	$mount_count++;
+}
+
+$ram_warnings = 0;
+if ($linux) {
+	$boot_cmd_line = `cat /proc/cmdline`;
+	$ramdisk_size = 16384;
+	# Don't know whether spaces are legal here, but it probably won't
+	# hurt.
+
+	if ($boot_cmd_line =~ /ramdisk_size\s*=\s*(\d*)/) {
+		$ramdisk_size=$1;
+	} else {
+		# Current default ramdisk_size ; could change in future.
+
+		print STDERR "\n";
+		print STDERR "\tWARNING:\n";
+		print STDERR "\tWARNING: couldn't find ramdisk_size on kernel boot command line.\n";
+		print STDERR "\tWARNING: This might cause failure to create properly sized ramdisks.\n";
+		print STDERR "\tWARNING:\n";
+		print STDERR "\tWARNING: Using default size of $ramdisk_size K if anything larger is requested\n";
+		print STDERR "\tWARNING:\n";
+		print STDERR "\tWARNING: To use larger values add \"ramdisk_size=N\" (N is in K-bytes) \n"; 
+		print STDERR "\tWARNING: to the boot command in /etc/grub.conf\n";
+		print STDERR "\n";
+	}
+}
+
+
+for ($i = 0; $i < $disk_entries; $i++) {
+	print STDERR "\n";
+	print STDERR "##############################################################\n";
+	print STDERR "\n";
+
+	$disk = $disks[$i];
+	$diskdirectory = $diskdirectories[$i];
+
+	if ($mount_devices_hash{$disk} != 0) {
+		print STDERR "\tDevice \"$disk\" is already mounted.  Skipping.\n";
+		next;
+	}
+	if ($mount_points_hash{$diskdirectory} != 0) {
+		print STDERR "\tMountpoint \"$diskdirectory\" is already mounted.  Skipping.\n";
+		next;
+	}
+
+	# On Linux, -b [count] specifies a block size, and the overall size of
+	# the file system is specified as number to multiply by the block size.
+	# On HP-UX file systems, the block size may be specified, but the size
+	# of the file system is given as a multiple of 1024 byte "sectors".
+	# So, if HP-UX, just use the fssize as the count;  if Linux, derive
+	# the multiple from the blocksize, if using.
+
+	$lmkfsopts = $mkfsopts[$i];
+	$lmkfsopts =~ s/^"//;
+	$lmkfsopts =~ s/"\s*$//;
+	$lfssize = $fssize[$i];
+	$lfstype = $fstype[$i];
+	if ($linux) {
+
+		if ($lfssize > $ramdisk_size) {
+			if (($ramdisk[$i] eq "ram") && ($lfstype ne "ramfs")) {
+
+				$ram_warnings = 1;
+
+				print STDERR "\n";
+				print STDERR "\tWARNING:\n";
+				print STDERR "\tWARNING:  trying to create a file system on ramdisk $disk\n";
+				print STDERR "\tWARNING:  of size $lfssize K which is larger than the maximum \n";
+				print STDERR "\tWARNING:  ramdisk size of $ramdisk_size K.\n";
+				print STDERR "\tWARNING:  Using default value of $ramdisk_size K instead\n";
+				print STDERR "\n";
+
+				$lfssize = $ramdisk_size;
+			}
+		}
+
+		# Not handling negative block sizes---too weird.
+		$lmkfsopts =~ /-b[ \t]*(\d+)/;
+		$bsize = $1;
+		if ($bsize =~ /^$/) {
+			# Best guess, but this might not be the right thing to do.
+			$cfssize = $lfssize;
+		} else {
+			if ($bsize < 1024) {
+				$mult = 1024 / $bsize;
+				$cfssize = $lfssize * $mult;
+			} else {
+				$div = $bsize / 1024;
+				$cfssize = $lfssize / $div;
+			}
+		}
+
+		if ($lfstype eq "ramfs") {
+			print STDERR "\tramfs: $disk at $diskdirectory. No need to create a filesystem.\n";
+
+		} else {
+			print STDERR "\t$lfstype: $disk at $diskdirectory.\n";
+			print STDERR "\n";
+			print STDERR "\tmkfs.${lfstype} $lmkfsopts $disk $cfssize\n";
+			print STDERR "\n";
+
+			$result = `mkfs.${lfstype} $lmkfsopts $disk $cfssize | sed 's/^/	/'`;
+			$return = $?;
+		}
+	} elsif ($hpux) {
+		$result = `mkfs -F ${lfstype} $lmkfsopts $disk $lfssize | sed 's/^/	/'`;
+	} else {
+		$result = "\n";
+		print STDERR "\tUnrecognized operating system type, skipping mknod\n";
+	}
+
+	print STDERR $result;
+}
+
+if ($ram_warnings) {
+	print STDERR "\n";
+	print STDERR "##############################################################\n";
+	print STDERR "\n";
+	print STDERR "\tWARNING:\n";
+	print STDERR "\tWARNING: there were possible errors related to ramdisk_size!\n";
+	print STDERR "\tWARNING: Check the output carefully to make sure the config is valid.\n\n";
+}

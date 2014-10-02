@@ -1,0 +1,46 @@
+1. Add D. McNeil's AIO/O_DIRECT goop
+
+2. Figure out a proper installation routine.
+
+3. Add three items to register_test
+	- ptr to function global_init
+	- ptr to function loop_init
+	- ptr to function cleanup
+	STILL THINKING
+
+4. Remove disk file create/destroy from driver.c and 
+	attach it to the disk tests by means of 
+	the above structs
+	NOT DONE
+5. There are a lot of un-used parameters in the micro-tests. Why?
+
+6. Also, what do we do with struct Result, other than pass it around alot?
+
+-------------------------------------
+1. Break helper functions into separate source file
+	DONE - mostly
+
+2. Move all function declarations into suite.h
+	DONE - mostly
+
+3. Replace cmd_args with linked list, remove size restrictions
+	DONE - tested
+
+
+6. Add the adaptive timer code
+	DONE - needs review - no Newton
+
+7. Add command args
+	DONE
+
+8. Add config file
+a	DONE
+
+9. Add reporting
+	STARTED
+
+10. Add switch to change from psuedo-random to better random. 
+	Explained - psuedo-random gives more repeatability
+
+
+

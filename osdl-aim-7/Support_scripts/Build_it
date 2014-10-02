@@ -1,0 +1,124 @@
+#! /bin/bash
+#
+# This script configures the Re-AIM7 benchmark and makes it, using compiler
+# flags appropriate to the type of system it is being built on, either
+# Linux or HP-UX.  It searches the directory tree, finding all "configure.in"
+# and "Makefile.am" files, saving the originals with the extension .orig,
+# and modifying them to remove any "CFLAGS" variables by prepending a hash
+# symbol.  The appropriate CFLAGS, CPPFLAGS, and LDFLAGS are then set for
+# the system's local tool chain.
+#
+# To use this script on an HP-UX 11.31 system, the following packages must be
+# installed:
+#    autoconf-2.68-ia64-11.31.depot
+#    automake-1.11.3-ia64-11.31.depot
+#    bash-4.2.020-ia64-11.31.depot
+#    gettext-0.18.1.1-ia64-11.31.depot
+#    libiconv-1.14-ia64-11.31.depot
+#    libpcap-1.1.1-ia64-11.31.depot
+#    libtool-2.4.2-ia64-11.31.depot
+#    m4-1.4.16-ia64-11.31.depot
+#    make-3.82-ia64-11.31.depot
+#    perl-5.10.1-ia64-11.31.depot
+#    sed-4.2.1-ia64-11.31.depot
+#    termcap-1.3.1-ia64-11.31.depot  
+#
+# These can be found bundled together in a tar file on the machines kernperf
+# or Zebra (hpperf1).  If the system is earlier than 11.31, you're on your own
+# (see the HP-UX Porting Center (http://hpux.connect.org.uk/)).
+# The tar file will be called hpux_automake_tools.tar.gz.  It is around
+# 35MB, so won't be included with this package.
+
+LINUX_LIBAIO="/usr/lib64/libaio.a"
+LINUX_CFLAGS="-W -Wall -g -O3 -ffloat-store"
+LINUX_CPPFLAGS="-I../include -D_GNU_SOURCE -DSHARED_OFILE -Dlinux"
+LINUX_LDFLAGS="-lm $LINUX_LIBAIO"
+
+HPUX_LP64=+DD64
+HPUX_LIBPTHREAD="/usr/lib/hpux32/libpthread.so"
+HPUX_CFLAGS="-O3 ${HPUX_LP64}"
+HPUX_CPPFLAGS="-I../include -D_GNU_SOURCE -DSHARED_OFILE -Dhpux"
+HPUX_LDFLAGS="-lm"
+
+OTHER_CFLAGS="-O"
+OTHER_CPPFLAGS="-I../include -D_GNU_SOURCE -DSHARED_OFILE"
+OTHER_LDFLAGS="-lm"
+
+SYSNAME=`uname -s`
+
+case $SYSNAME in
+	HP-UX)
+		export CFLAGS=$HPUX_CFLAGS
+		export CPPFLAGS=$HPUX_CPPFLAGS
+		export LDFLAGS=$HPUX_LDFLAGS
+		if [ ! -f $HPUX_LIBPTHREAD ]
+		then
+			echo WARNING! ------
+			echo It appears that $HPUX_LIBPTHREAD does not exist.
+			echo You may need this file in order to complete linking the benchmark.
+			echo ----- WARNING!
+
+		fi
+		export LD_PRELOAD=${HPUX_LIBPTHREAD}
+		echo using HP-UX build options.;;
+	Linux)
+		export CFLAGS=$LINUX_CFLAGS
+		export CPPFLAGS=$LINUX_CPPFLAGS
+		export LDFLAGS=$LINUX_LDFLAGS
+		
+		if [ ! -f $LINUX_LIBAIO ]
+		then
+			echo WARNING! ------
+			echo It appears that $LINUX_LIBAIO does not exist.
+			echo You may need this file in order to complete linking the benchmark.
+			echo Try "yum info libaio" / "yum install libaio".
+			echo ----- WARNING!
+
+		fi
+		echo using Linux build options.;;
+	*)
+		export CFLAGS=$OTHER_CFLAGS
+		export CPPFLAGS=$OTHER_CPPFLAGS
+		export LDFLAGS=$OTHER_LDFLAGS
+		echo Unknown machine.  Using default build options.;;
+esac
+
+echo CFLAGS: $CFLAGS
+echo CPPFLAGS: $CPPFLAGS
+echo LDFLAGS: $LDFLAGS
+
+configure_files=`find . -type f -print | grep "configure.in$"`
+makefile_am_files=`find . -type f -print | grep "Makefile.am$"`
+
+for file in $configure_files $makefile_am_files
+do
+	grep "^CFLAGS[ 	]*=" $file >& /dev/null
+	if [ $? -eq 0 ]
+	then
+		grep "^CFLAGS[ 	]*=.*\\\\[ 	]*$" $file >& /dev/null
+		if [ $? -eq 0 ]
+		then 
+			echo WARNING! ------
+			echo Skipping $file because it appears to have a
+			echo CFLAGS line continued on the following line.
+			echo You must handle this one manually.
+			echo ----- WARNING!
+			continue
+		fi
+		if [ -f ${file}.orig ]
+		then
+			echo WARNING! ------
+			echo Skipping $file because ${file}.orig already exists.
+			echo You must handle this one manually.
+			echo ----- WARNING!
+			continue
+		fi
+		echo Modifying $file
+		mv $file ${file}.orig
+		sed "s/^CFLAGS/# CFLAGS/" < ${file}.orig > $file
+	fi
+done
+
+./Support_scripts/bootstrap
+./configure
+make

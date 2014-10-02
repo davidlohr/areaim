@@ -1,0 +1,165 @@
+#! /usr/bin/perl
+
+@INIT_ARGV = @ARGV;
+$program_name = $0;
+$program_dir = `dirname $0`;
+$verbose = 0;
+
+use lib "/usr/local/share/reaim/osdl-aim-7/Support_scripts";
+
+use lib	"Getopt";
+use POSIX;
+use Getopt::Std;
+use parse_config;
+
+Getopt::Std::getopts('hvf:');
+
+if ($opt_h) {
+	print STDERR "Usage: $program_name -h -v -f disk_config_file\n";
+	print STDERR "       -h => help\n";
+	print STDERR "       -v => verbose\n";
+	print STDERR "       -f disk_config_file => master disk configuration file\n";
+}
+if ($opt_v) {
+	$verbose = 1;
+}
+if ($opt_f) {
+	$disk_config_file = $opt_f;
+} else {
+	$disk_config_file = "master_disk_list";
+}
+
+#print STDERR "\tverbose: ", $verbose ? "true" : "false", "\n";
+$dir = `pwd`;
+print STDERR "\tdisk configuration file: $disk_config_file\n";
+print STDERR "\tfrom directory:          $dir\n";
+
+
+if ($opt_h) {
+	exit 0;
+}
+
+if (!parse_config::parse_disk_configuration_file($disk_config_file,$opt_f)) {
+	exit 1;
+}
+
+($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
+
+$linux = 0;
+$hpux = 0;
+
+#
+# need to use "mount" for linux since "df" doesn't show ramfs filesystems
+#
+if ($sysname =~ /^[Ll]inux/) {
+	$dfcmd = "df -a";
+	$linux = 1;
+} elsif ($sysname =~ /^[Hh][Pp]-[Uu][Xx]/) {
+	$dfcmd = "bdf";
+	$hpux = 1;
+} else {
+	print STDERR "\tUnrecognized operating system type!\n";
+}
+
+$mounted_fs = `$dfcmd`;
+
+if ($mounted_fs !~ /\n$/) {
+	$mounted_fs =~ s/$/\n/;
+}
+
+$mount_count = 0;
+
+#
+# Need to parse this properly for the mount command so we can
+# recognize whether an ramfs is already mounted
+#
+while ($mounted_fs ne "") {
+	$mounted_fs =~ s/^(.*)?\n//;
+	$line = $1;
+	$line =~ s/\n*$//;
+	if ($line =~ /^\s*$/) {
+		next;
+	}
+	if ($line =~ /^Filesystem\s/) {
+		next;
+	}
+	if ($line =~ /^\S+\s*$/) {
+		$mounted_fs =~ s/^(.*)?\n//;
+		$cline = $1;
+		$cline =~ s/\n*$//;
+		if ($cline !~ /^\s+\S/) {
+			print STDERR "\tBad mounted fs continuation in \"$line\" \"$cline\" pair.\n";
+			print STDERR "\tAttempting to continue, but bad results might occur.\n";
+		}
+		$line = $line . $cline;
+	}
+
+	if ($line !~ /^\S/) {
+		print STDERR "\tMount entry beginning with white space---are we out of sync?\n";
+	}
+
+	$line =~ /^(\S+)\s.*(\S+)\s*$/;
+	$device = $1;
+	$mount_point = $2;
+
+	$mount_devices[$mount_count] = $device;
+	$mount_points[$mount_count] = $mount_point;
+	$mount_devices_hash{$device} = $mount_count+1;
+	$mount_points_hash{$mount_point} = $mount_count+1;
+	$mount_count++;
+}
+
+for ($i = 0; $i < $disk_entries; $i++) {
+	$disk = $disks[$i];
+	$diskdirectory = $diskdirectories[$i];
+
+	if ($mount_devices_hash{$disk} != 0) {
+		print STDERR "\tDevice \"$disk\" is already mounted.  Skipping.\n";
+		next;
+	}
+	if ($mount_points_hash{$diskdirectory} != 0) {
+		print STDERR "\tMountpoint \"$diskdirectory\" is already mounted.  Skipping.\n";
+		next;
+	}
+
+	if ( -e $diskdirectory && ! ( -d $diskdirectory ) ) {
+		print STDERR "\tMount point $diskdirectory already exists and is not a directory.  Skipping.\n";
+		next;
+	}
+
+	if ( ! ( -e $diskdirectory ) ) {
+		print STDERR "\tCreating directory $diskdirectory";
+		$success = mkdir $diskdirectory;
+		if ($success) {
+			print STDERR " successful.\n";
+		} else {
+			print STDERR " failed!\n";
+			next;
+		}
+	}
+	$lmountopts = $mountopts[$i];
+	$lmountopts =~ s/^\"//;
+	$lmountopts =~ s/\"\s*$//;
+	$lfstype = $fstype[$i];
+	if ($linux) {
+		$result = `mount -t $lfstype $lmountopts $disk $diskdirectory`;
+		$retstatus = $?;
+	} elsif ($hpux) {
+		$result = `mount -F $lfstype $lmountopts $disk $diskdirectory`;
+		$retstatus = $?;
+	} else {
+		$result = "\n";
+		$retstatus = 1;
+		print STDERR "\tMount $disk: unrecognized operating system!\n";
+	}
+
+	if ( $retstatus == 0 ) {
+		print STDERR "\tSuccesfully mounted $disk at $diskdirectory for FS type $lfstype\n";
+	} else {
+		print STDERR "\tFailed to mount $disk at $diskdirectory\n";
+	}
+}
+
+# This is a hack, but it solves some problems
+
+`chmod ugo+rwx /tmp /var/tmp /usr/tmp`;

@@ -1,0 +1,16 @@
+# These are the original files fixed by Marcia to compile on HPUX.
+# The hacks may or not be the best solutions and need to be reworked.
+# Original source files are still there as *.orig
+include/tlibio.h
+include/write_log.h
+lib/Makefile.am
+lib/str_to_bytes.c
+lib/tlibio.c
+lib/tst_sig.c
+src/creat_clo.c
+src/disk1.c
+src/disk_funcs.c
+src/disk_src.c
+src/driver.c
+src/drv_funcs.c
+src/num_fcns.c

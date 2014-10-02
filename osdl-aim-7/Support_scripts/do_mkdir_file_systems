@@ -1,0 +1,75 @@
+#! /usr/bin/perl
+
+@INIT_ARGV = @ARGV;
+$program_name = $0;
+$program_dir = `dirname $0` ;
+$verbose = 0;
+$tmp_disk_dir = "/tmp/diskdir" ;
+
+use lib "/usr/local/share/reaim/osdl-aim-7/Support_scripts";
+
+use lib	"Getopt";
+use POSIX;
+use Getopt::Std;
+use parse_config;
+
+Getopt::Std::getopts('hvf:');
+
+if ($opt_h) {
+	print STDERR "Usage: $program_name -h -v -f disk_config_file\n";
+	print STDERR "       -h => help\n";
+	print STDERR "       -f disk_config_file => master disk configuration file\n";
+}
+if ($opt_f) {
+	$disk_config_file = $opt_f;
+} else {
+	$disk_config_file = "master_disk_list";
+}
+
+$dir = `pwd`;
+print STDERR "\tdisk configuration file: $disk_config_file\n";
+print STDERR "\tfrom directory:          $dir\n";
+
+if ($opt_h) {
+	exit 0;
+}
+
+if (!parse_config::parse_disk_configuration_file($disk_config_file,$opt_f)) {
+	exit 1;
+}
+
+($sysname, $nodename, $release, $version, $machine) = POSIX::uname();
+
+$linux = 0;
+$hpux = 0;
+
+for ($i = 0; $i < $disk_entries; $i++) {
+	$disk = $disks[$i];
+	$diskdirectory = $diskdirectories[$i];
+
+	if ( -e $diskdirectory && ! ( -d $diskdirectory ) ) {
+		print STDERR "\tMount point $diskdirectory already exists and is not a directory.  Skipping.\n";
+		next;
+	}
+
+	if ( ! ( -e $diskdirectory ) ) {
+		print STDERR "\tCreating directory $diskdirectory";
+		$success = mkdir $diskdirectory;
+		if ($success) {
+			print STDERR " successful.\n";
+		} else {
+			print STDERR " failed!\n";
+			next;
+		}
+	} else {
+		print STDERR "\tDirectory $diskdirectory already exists\n";
+	}
+}
+
+if ( ! -d $tmp_disk_dir ) {
+        mkdir  $tmp_disk_dir ;
+}
+
+# This is a hack, but it solves some problems
+
+`chmod ugo+rwx /tmp /var/tmp /usr/tmp`;
